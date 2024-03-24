@@ -13,7 +13,7 @@ struct UtmLocation {
     north: f64,
     elevation: f64,
     zone: u8,
-    convergence: f64,
+    convergence_angle: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -44,19 +44,32 @@ pub enum Datum {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+struct FixedStation {
+    name: String,
+    location: UtmLocation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct SurveyDataFile {
+    file_path: String,
+    fixed_stations: Vec<FixedStation>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
     BaseLocation(UtmLocation),
     CarriageReturn,
     Comment(String),
     Datum(Datum),
     LineFeed,
-    FilePath(String),
+    FilePath(SurveyDataFile),
+    UtmZone(u8),
 }
 
 struct Project {
     base_location: UtmLocation,
     datum: Datum,
-    survey_data: Vec<SurveyData>,
+    survey_data: Vec<SurveyDataFile>,
 }
 
 fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
@@ -69,7 +82,7 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(',')(input)?;
     let (input, zone) = u8(input)?;
     let (input, _) = char(',')(input)?;
-    let (input, convergence) = double(input)?;
+    let (input, convergence_angle) = double(input)?;
     let (input, _) = char(';')(input)?;
     Ok((
         input,
@@ -78,9 +91,16 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
             north,
             elevation,
             zone,
-            convergence,
+            convergence_angle,
         }),
     ))
+}
+
+fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = tag("/")(input)?;
+    let (input, comment) = take_till(|c| is_terminator(c))(input)?;
+
+    Ok((input, ProjectElement::Comment(comment.to_string())))
 }
 
 fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
@@ -125,19 +145,31 @@ fn is_terminator(c: char) -> bool {
 
 fn parse_file_path(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = tag("#")(input)?;
-    let (input, _) = char(' ')(input)?;
     // This should be the file path, but there can be 0 or more fixed stations associated
     let (input, file_path) = take_till1(|c| is_terminator(c))(input)?;
+    let data_file = SurveyDataFile {
+        file_path: file_path.to_string(),
+        fixed_stations: Vec::new(),
+    };
+    Ok((input, ProjectElement::FilePath(data_file)))
+}
 
-    Ok((input, ProjectElement::FilePath(file_path.to_string())))
+fn parse_utm_zone(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = tag("$")(input)?;
+    let (input, zone) = u8(input)?;
+    let (input, _) = char(';')(input)?;
+    Ok((input, ProjectElement::UtmZone(zone)))
 }
 
 fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
     alt((
         parse_base_location,
         value(ProjectElement::CarriageReturn, char('\r')),
+        parse_comment,
         parse_datum,
         value(ProjectElement::LineFeed, char('\n')),
+        parse_file_path,
+        parse_utm_zone,
     ))(input)
 }
 
@@ -145,6 +177,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
+    let mut survey_data: Vec<SurveyDataFile> = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
         input = munched;
@@ -153,7 +186,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
                 base_location = Some(parsed_base_location)
             }
             ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
-            ProjectElement::FilePath(file_path) => {}
+            ProjectElement::FilePath(file_info) => survey_data.push(file_info),
             _ => (),
         }
     }
@@ -163,6 +196,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
             Project {
                 base_location: base_location.unwrap(),
                 datum: datum.unwrap(),
+                survey_data: Vec::new(),
             },
         ))
     } else {
@@ -186,7 +220,8 @@ mod tests {
         assert!(project.base_location.north == 4372837.574_f64);
         assert!(project.base_location.elevation == 3048_f64);
         assert!(project.base_location.zone == 13);
-        assert!(project.base_location.convergence == -1.050_f64);
+        assert!(project.base_location.convergence_angle == -1.050_f64);
         assert!(project.datum == Datum::NorthAmerican1983);
+        assert!(project.survey_data.len() > 0)
     }
 }
