@@ -1,17 +1,41 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_till, take_till1, take_until},
+    bytes::complete::{tag, take_till, take_until},
     character::complete::{char, u8},
     combinator::value,
     number::complete::double,
     IResult,
 };
 
+use crate::FEET_TO_METERS;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct UtmLocation {
+pub struct EastNorthElevation {
     east: f64,
     north: f64,
     elevation: f64,
+}
+
+impl EastNorthElevation {
+    pub fn from_meters(east: f64, north: f64, elevation: f64) -> Self {
+        Self {
+            east,
+            north,
+            elevation,
+        }
+    }
+    pub fn from_feet(east: f64, north: f64, elevation: f64) -> Self {
+        Self {
+            east: east * FEET_TO_METERS,
+            north: north * FEET_TO_METERS,
+            elevation: elevation * FEET_TO_METERS,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UtmLocation {
+    east_north_elevation: EastNorthElevation,
     zone: u8,
     convergence_angle: f64,
 }
@@ -38,19 +62,19 @@ pub enum Datum {
     Pulkovo1942,
     SouthAmerican1956,
     SouthAmerican1969,
-    Tokyio,
+    Tokyo,
     Wgs1972,
     Wgs1984,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct FixedStation {
+pub struct FixedStation {
     name: String,
     location: UtmLocation,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct SurveyDataFile {
+pub struct SurveyDataFile {
     file_path: String,
     fixed_stations: Vec<FixedStation>,
 }
@@ -63,13 +87,15 @@ enum ProjectElement {
     Datum(Datum),
     LineFeed,
     FilePath(SurveyDataFile),
+    Space,
     UtmZone(u8),
 }
 
-struct Project {
-    base_location: UtmLocation,
-    datum: Datum,
-    survey_data: Vec<SurveyDataFile>,
+pub struct Project {
+    pub base_location: UtmLocation,
+    pub datum: Datum,
+    pub survey_data: Vec<SurveyDataFile>,
+    pub utm_zone: Option<u8>,
 }
 
 fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
@@ -84,12 +110,11 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(',')(input)?;
     let (input, convergence_angle) = double(input)?;
     let (input, _) = char(';')(input)?;
+    let east_north_elevation = EastNorthElevation::from_meters(east, north, elevation);
     Ok((
         input,
         ProjectElement::BaseLocation(UtmLocation {
-            east,
-            north,
-            elevation,
+            east_north_elevation,
             zone,
             convergence_angle,
         }),
@@ -98,7 +123,7 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
 
 fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = tag("/")(input)?;
-    let (input, comment) = take_till(|c| is_terminator(c))(input)?;
+    let (input, comment) = take_till(|c| internal_separator(c))(input)?;
 
     Ok((input, ProjectElement::Comment(comment.to_string())))
 }
@@ -130,7 +155,7 @@ fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
             value(Datum::Pulkovo1942, tag("Pulkovo 1942")),
             value(Datum::SouthAmerican1956, tag("South American 1956")),
             value(Datum::SouthAmerican1969, tag("South American 1969")),
-            value(Datum::Tokyio, tag("Tokyo")),
+            value(Datum::Tokyo, tag("Tokyo")),
             value(Datum::Wgs1972, tag("Wgs 1972")),
             value(Datum::Wgs1984, tag("Wgs 1984")),
         )),
@@ -139,18 +164,55 @@ fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
     Ok((input, ProjectElement::Datum(datum)))
 }
 
+fn consume_internal_whitespace(input: &str) -> IResult<&str, &str> {
+    take_till(|c: char| !c.is_whitespace())(input)
+}
+
+fn internal_separator(c: char) -> bool {
+    c == ',' || c == '\r' || c == '\n'
+}
+
 fn is_terminator(c: char) -> bool {
-    c == ',' || c == ';' || c == '\r' || c == '\n'
+    c == ';'
 }
 
 fn parse_file_path(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = tag("#")(input)?;
-    // This should be the file path, but there can be 0 or more fixed stations associated
-    let (input, file_path) = take_till1(|c| is_terminator(c))(input)?;
+    // This should be the full file description, including any links
+    let (input, file_info) = take_till(|c| is_terminator(c))(input)?;
+
+    let (input, file_path) = take_till(|c| internal_separator(c) || is_terminator(c))(file_info)?;
+    while input.chars().next().unwrap() == ',' {
+        let (input, _) = char(',')(input)?;
+        let (input, _) = consume_internal_whitespace(input)?;
+        let (input, station_name) = take_until("[")(input)?;
+        let (input, _) = char('[')(input)?;
+        let (input, unit_char) = alt((char('m'), char('f')))(input)?;
+        let (input, _) = consume_internal_whitespace(input)?;
+        let (input, _) = char(',')(input)?;
+        let (input, east) = double(input)?;
+        let (input, _) = char(',')(input)?;
+        let (input, north) = double(input)?;
+        let (input, _) = char(',')(input)?;
+        let (input, elevation) = double(input)?;
+        let (input, _) = consume_internal_whitespace(input)?;
+        let (input, _) = char(']')(input)?;
+        let ene = match unit_char {
+            'm' => EastNorthElevation::from_meters(east, north, elevation),
+            'f' => EastNorthElevation::from_feet(east, north, elevation),
+            _ => panic!("invalid unit tag"),
+        };
+        let (input, _) = char(']')(input)?;
+    }
+
     let data_file = SurveyDataFile {
         file_path: file_path.to_string(),
         fixed_stations: Vec::new(),
     };
+    let (input, _) = consume_internal_whitespace(input)?;
+
+    let (input, _) = char(';')(input)?;
+
     Ok((input, ProjectElement::FilePath(data_file)))
 }
 
@@ -196,7 +258,8 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
             Project {
                 base_location: base_location.unwrap(),
                 datum: datum.unwrap(),
-                survey_data: Vec::new(),
+                survey_data,
+                utm_zone: None,
             },
         ))
     } else {
@@ -216,9 +279,10 @@ mod tests {
             .join("Fulfords.mak");
         let input = std::fs::read_to_string(sample_project).unwrap();
         let (_, project) = parse_compass_project(&input).unwrap();
-        assert!(project.base_location.east == 357715.717_f64);
-        assert!(project.base_location.north == 4372837.574_f64);
-        assert!(project.base_location.elevation == 3048_f64);
+        let ene = project.base_location.east_north_elevation;
+        assert!(ene.east == 357715.717_f64);
+        assert!(ene.north == 4372837.574_f64);
+        assert!(ene.elevation == 3048_f64);
         assert!(project.base_location.zone == 13);
         assert!(project.base_location.convergence_angle == -1.050_f64);
         assert!(project.datum == Datum::NorthAmerican1983);
