@@ -1,6 +1,6 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_till, take_till1, take_until},
+    bytes::complete::{tag, take_till, take_till1},
     character::complete::{char, multispace0, u8},
     combinator::value,
     error::ParseError,
@@ -22,7 +22,6 @@ enum ProjectElement {
     Datum(Datum),
     LineFeed,
     FilePath(SurveyDataFile),
-    Space,
     UtmZone(u8),
 }
 
@@ -71,7 +70,7 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
 
 fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = tag("/")(input)?;
-    let (input, comment) = take_till(|c| is_end_of_comment(c))(input)?;
+    let (input, comment) = take_till(is_end_of_comment)(input)?;
 
     Ok((input, ProjectElement::Comment(comment.to_string())))
 }
@@ -112,12 +111,6 @@ fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
     Ok((input, ProjectElement::Datum(datum)))
 }
 
-fn consume_internal_whitespace(input: &str) -> IResult<&str, &str> {
-    take_till(|c: char| !c.is_whitespace())(input)
-}
-fn newline(c: char) -> bool {
-    c == '\n' || c == '\r'
-}
 fn is_end_of_comment(c: char) -> bool {
     c == '/' || c == '\n' || c == '\r'
 }
@@ -224,12 +217,12 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
             _ => (),
         }
     }
-    if base_location.is_some() && datum.is_some() {
+    if let (Some(base_location), Some(datum)) = (base_location, datum) {
         Ok((
             input,
             Project {
-                base_location: base_location.unwrap(),
-                datum: datum.unwrap(),
+                base_location,
+                datum,
                 survey_data,
                 utm_zone: None,
             },
@@ -244,7 +237,6 @@ mod tests {
     use float_eq::assert_float_eq;
 
     use super::*;
-    use std::path::PathBuf;
     #[test]
     fn parse_format_examples() {
         let input = include_str!("../../test_data/project_file_examples");

@@ -1,5 +1,4 @@
 const FEET_TO_METERS: f64 = 0.3048;
-const METERS_TO_FEET: f64 = 1.0 / FEET_TO_METERS;
 
 /// East North Up coordinates
 /// Always stored in meters
