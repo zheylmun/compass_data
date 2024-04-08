@@ -3,3 +3,47 @@
 #DEEP1.DAT;
 #DEEP2.DAT;
 #DEEP3.DAT;
+#TEST1.DAT,A1[F,10.1,20.2,30.3];
+#TEST2.DAT,C1[M,1.2,2.3,3.4];
+[Folder-1;
+#cave1.dat;
+[Folder-2;
+  #cave2.dat;
+  [Folder-3;
+     #cave3.dat;
+     #cave4.dat;
+  ];
+  #cave5.dat;
+];
+#cave6.dat;
+];
+
+#WIND1.DAT;
+ 
+#WIND2.DAT,
+C41,F12,P9,C41,C40,UG30,NFP1,C39,SA'12,PP3,  /from Wind1 to Wind2
+JF65,JF109,L*6,JF10,                         /from Wind1 to Wind3
+KX37R,KY258R,JW1R,KY357,                     /from Wind1 to Wind5
+CR1,KK32,SA9R,BX21,KK32;                     /from Wind1 to Wind4
+ 
+#WIND3.DAT,
+JF65,JF109,L*6,JF10,                    /from Wind1 to Wind3
+KX37R,KY258R,JW1R,KY357,                /from Wind1 to Wind5
+CR1,KK32,SA9R,BX21,KK32;                /from Wind1 to Wind4
+ 
+#WIND4.DAT,
+KX37R,KY258R,JW1R,KY357,           /from Wind1 to Wind5
+CR1,KK32,SA9R,BX21,KK32,           /from Wind1 to Wind4
+MP74,MP28,PC2,KY349,KY326,         /from Wind3 to Wind5
+AA29,AA30,AA32,CR4,PC7,ZB1;        /from Wind3 to Wind4
+ 
+#WIND5.DAT,
+SE202,                             /from Wind4 to Wind6
+KX37R,KY258R,JW1R,KY357,           /from Wind1 to Wind5
+MP74,MP28,PC2,KY349,KY326,              /from Wind3 to Wind5
+KK20,K29,KK26,KF14,BB35,BB37,KQ45,      /from Wind4 to Wind5
+KA1,KO4,KI24,KK33,KK37,KK41,KK53,BB33,SD15;
+ 
+#WIND6.DAT,
+SE202;                             /from Wind4 to Wind6
+ 

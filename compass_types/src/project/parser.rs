@@ -1,16 +1,17 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_till, take_till1},
+    bytes::complete::{tag, take_till, take_till1, take_until1},
     character::complete::{char, multispace0, u8},
     combinator::value,
-    error::ParseError,
     multi::many0,
     number::complete::double,
-    sequence::delimited,
     IResult, Parser,
 };
 
-use crate::EastNorthUp;
+use crate::{
+    parser_utils::{is_valid_station_name_char, parse_double, ws},
+    EastNorthUp,
+};
 
 use super::{Datum, Project, Station, SurveyDataFile, UtmLocation};
 
@@ -21,22 +22,11 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    FilePath(SurveyDataFile),
+    File(SurveyDataFile),
+    PushFolder(String),
+    PopFolder,
     UtmZone(u8),
-}
-
-/// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and
-/// trailing whitespace, returning the output of `inner`.
-fn ws<'a, F, O, E>(inner: F) -> impl Parser<&'a str, O, E>
-where
-    F: Parser<&'a str, O, E>,
-    E: ParseError<&'a str>,
-{
-    delimited(multispace0, inner, multispace0)
-}
-
-fn parse_double(input: &str) -> IResult<&str, f64> {
-    ws(double).parse(input)
+    Whitespace,
 }
 
 /// The meaning of the doubles is slightly different depending on the context, so just parse to a tuple
@@ -69,6 +59,7 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
 }
 
 fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = multispace0(input)?;
     let (input, _) = tag("/")(input)?;
     let (input, comment) = take_till(is_end_of_comment)(input)?;
 
@@ -123,18 +114,14 @@ fn is_terminator(c: char) -> bool {
     c == ';'
 }
 
-fn is_valid_station_char(c: char) -> bool {
-    c.is_ascii_alphanumeric()
-}
-
 fn parse_station_fix(input: &str) -> IResult<&str, EastNorthUp> {
     let (input, _) = char('[')(input)?;
     // Eat the whitespace before and after the unit tag
-    let (input, unit_char) = ws(alt((char('m'), char('f')))).parse(input)?;
+    let (input, unit_char) = ws(alt((char('m'), char('M'), char('f'), char('F')))).parse(input)?;
     let (input, _) = char(',')(input)?;
     let (input, (east, north, elevation)) = parse_triple_double(input)?;
     let (input, _) = char(']')(input)?;
-    let ene = match unit_char {
+    let ene = match unit_char.to_ascii_lowercase() {
         'm' => EastNorthUp::from_meters(east, north, elevation),
         'f' => EastNorthUp::from_feet(east, north, elevation),
         _ => panic!("invalid unit tag"),
@@ -145,7 +132,8 @@ fn parse_station_fix(input: &str) -> IResult<&str, EastNorthUp> {
 // Each station is a comma separated list of station name and optional fixed location
 fn parse_station(input: &str) -> IResult<&str, Station> {
     let (input, _) = char(',')(input)?;
-    let (input, station_name) = ws(take_till(|c| !is_valid_station_char(c))).parse(input)?;
+    let (input, _) = many0(parse_comment)(input)?;
+    let (input, station_name) = ws(take_till(|c| !is_valid_station_name_char(c))).parse(input)?;
     let station_fixed = parse_station_fix(input);
     if let Ok((input, fix)) = station_fixed {
         Ok((
@@ -174,11 +162,24 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(';')(input)?;
     Ok((
         input,
-        ProjectElement::FilePath(SurveyDataFile {
+        ProjectElement::File(SurveyDataFile {
             file_path: file_path.to_string(),
             fixed_stations: stations,
         }),
     ))
+}
+
+fn parse_push_folder(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = char('[')(input)?;
+    let (input, folder_name) = take_until1(";")(input)?;
+    let (input, _) = char(';')(input)?;
+    Ok((input, ProjectElement::PushFolder(folder_name.to_string())))
+}
+
+fn parse_pop_folder(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = char(']')(input)?;
+    let (input, _) = char(';')(input)?;
+    Ok((input, ProjectElement::PopFolder))
 }
 
 fn parse_utm_zone(input: &str) -> IResult<&str, ProjectElement> {
@@ -186,6 +187,11 @@ fn parse_utm_zone(input: &str) -> IResult<&str, ProjectElement> {
     let (input, zone) = u8(input)?;
     let (input, _) = char(';')(input)?;
     Ok((input, ProjectElement::UtmZone(zone)))
+}
+
+fn parse_whitespace(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = take_till1(|c: char| !c.is_whitespace())(input)?;
+    Ok((input, ProjectElement::Whitespace))
 }
 
 fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
@@ -196,7 +202,10 @@ fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
         parse_datum,
         value(ProjectElement::LineFeed, char('\n')),
         parse_project_file,
+        parse_push_folder,
+        parse_pop_folder,
         parse_utm_zone,
+        parse_whitespace,
     ))(input)
 }
 
@@ -205,6 +214,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
     let mut survey_data: Vec<SurveyDataFile> = Vec::new();
+    let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
         input = munched;
@@ -213,7 +223,13 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
                 base_location = Some(parsed_base_location)
             }
             ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
-            ProjectElement::FilePath(file_info) => survey_data.push(file_info),
+            ProjectElement::File(file_info) => survey_data.push(file_info),
+            ProjectElement::PushFolder(folder) => folders.push(folder),
+            ProjectElement::PopFolder => {
+                if let Some(folder) = folders.pop() {
+                    println!("Popped folder: {}", folder);
+                }
+            }
             _ => (),
         }
     }
@@ -253,6 +269,7 @@ mod tests {
             rmax <= 0.001
         );
         assert!(project.datum == Datum::NorthAmerican1983);
+        assert!(project.survey_data.len() == 17)
     }
 
     #[test]
