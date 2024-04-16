@@ -1,52 +1,169 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_till, take_till1, take_until1},
-    character::complete::{char, multispace0, u8},
-    combinator::value,
-    error::ParseError,
-    multi::many0,
-    number::complete::double,
-    sequence::delimited,
+    bytes::complete::{tag, take_till, take_till1, take_until1, take_while},
+    character::{
+        complete::{alpha1, char, multispace0, multispace1, not_line_ending, u8},
+        is_alphabetic,
+    },
+    error::Error,
+    multi::{self, many0},
+    sequence::Tuple,
     IResult, Parser,
 };
 
-use super::Survey;
-fn is_newline_char(c: char) -> bool {
-    c == '\n' || c == '\r'
-}
+use crate::{
+    common_types::Date,
+    parser_utils::{parse_double, parse_station_name, parse_uint, recognize_line, ws},
+};
 
-fn line_ending(input: &str) -> IResult<&str, &str> {
-    alt((tag("\r\n"), tag("\n")))(input)
-}
+use super::{BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters};
 
 fn parse_cave_name(input: &str) -> IResult<&str, String> {
-    let (input, cave_name) = take_till1(is_newline_char)(input)?;
-    let (input, _) = line_ending(input)?;
+    let (input, cave_name) = recognize_line(input)?;
+    let (cave_name, _) = multispace0(cave_name)?;
     Ok((input, cave_name.to_string()))
 }
 
 fn parse_survey_name(input: &str) -> IResult<&str, String> {
-    let (input, _) = tag("SURVEY NAME:")(input)?;
-    let (input, cave_name) = take_till1(is_newline_char)(input)?;
-    Ok((input, cave_name.to_string()))
+    let (input, survey_line) = recognize_line(input)?;
+    let (name, _) = tag("SURVEY NAME:")(survey_line)?;
+    let (_, name) = parse_station_name(name)?;
+
+    Ok((input, name.to_string()))
 }
+
+fn parse_survey_date_line(input: &str) -> IResult<&str, (Date, Option<String>)> {
+    let (input, date_line) = recognize_line(input)?;
+    let (date_line, _) = tag("SURVEY DATE:")(date_line)?;
+    let (date_line, month) = parse_uint(date_line)?;
+    let (date_line, day) = parse_uint(date_line)?;
+    let (date_line, year) = parse_uint(date_line)?;
+    let comment = match tag::<&str, &str, Error<&str>>("COMMENT:")(date_line) {
+        Ok((comment, _)) => Some(comment.to_string()),
+        Err(_unused) => None,
+    };
+    let date = Date {
+        month: month as u8,
+        day: day as u8,
+        year: year as u16,
+    };
+    Ok((input, (date, comment)))
+}
+
+fn parse_survey_team(input: &str) -> IResult<&str, String> {
+    let (input, _) = (tag("SURVEY TEAM:"), multispace1).parse(input)?;
+    let (input, team_line) = recognize_line(input)?;
+    Ok((input, team_line.to_string()))
+}
+
+fn parse_correction_factors(input: &str) -> IResult<&str, CorrectionFactors> {
+    let (input, _) = tag("CORRECTIONS:")(input)?;
+    let (input, azimuth) = parse_double(input)?;
+    let (input, inclination) = parse_double(input)?;
+    let (input, length) = parse_double(input)?;
+    Ok((
+        input,
+        CorrectionFactors {
+            azimuth,
+            inclination,
+            length,
+        },
+    ))
+}
+
+fn parse_backsight_correction_factors(input: &str) -> IResult<&str, BackSightCorrectionFactors> {
+    let (input, _) = tag("CORRECTIONS2:")(input)?;
+    let (input, azimuth) = parse_double(input)?;
+    let (input, inclination) = parse_double(input)?;
+    Ok((
+        input,
+        BackSightCorrectionFactors {
+            azimuth,
+            inclination,
+        },
+    ))
+}
+
+fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParameters> {
+    let (input, parameter_line) = recognize_line(input)?;
+    let (parameter_line, _) = tag("DECLINATION:")(parameter_line)?;
+    let (parameter_line, declination) = parse_double(parameter_line)?;
+    let (parameter_line, _) = tag("FORMAT:")(parameter_line)?;
+    let (parameter_line, _) = multispace0(parameter_line)?;
+    let (parameter_line, format_string) = alpha1(parameter_line)?;
+    let (parameter_line, _) = multispace0(parameter_line)?;
+    let correction_factor_result = parse_correction_factors(parameter_line);
+    let (parameter_line, correction_factors) = match correction_factor_result {
+        Ok((input, correction_factors)) => (input, Some(correction_factors)),
+        Err(_) => (parameter_line, None),
+    };
+    let backsight_correction_factor_result = parse_backsight_correction_factors(parameter_line);
+    let (_, backsight_correction_factors) = match backsight_correction_factor_result {
+        Ok((input, backsight_correction_factors)) => (input, Some(backsight_correction_factors)),
+        Err(_) => (parameter_line, None),
+    };
+
+    Ok((
+        input,
+        SurveyParameters {
+            declination,
+            correction_factors,
+            backsight_correction_factors,
+        },
+    ))
+}
+
+fn gobble_labels(input: &str) -> IResult<&str, &str> {
+    let (input, _) = ws(tag("FROM")).parse(input)?;
+    let (input, _) = ws(take_till1(|c| c == '\n')).parse(input)?;
+    Ok((input, ""))
+}
+
+fn parse_shot(input: &str) -> IResult<&str, Shot> {
+    let (input, line) = recognize_line(input)?;
+    let (line, from) = parse_station_name(line)?;
+    let (line, to) = parse_station_name(line)?;
+    let (line, length) = parse_double(line)?;
+    let (line, azimuth) = parse_double(line)?;
+    let (line, inclination) = parse_double(line)?;
+    let (line, left) = parse_double(line)?;
+    let (line, up) = parse_double(line)?;
+    let (line, down) = parse_double(line)?;
+    let (line, right) = parse_double(line)?;
+    let shot = Shot {
+        from: from.to_string(),
+        to: to.to_string(),
+        length,
+        azimuth,
+        inclination,
+        up,
+        down,
+        left,
+        right,
+        flags: None,
+        comment: None,
+    };
+    Ok((input, shot))
+}
+
 fn parse_survey(input: &str) -> IResult<&str, Survey> {
     let (input, cave_name) = parse_cave_name(input)?;
-    let (input, survey_name) = parse_survey_name(input)?;
+    let (input, name) = parse_survey_name(input)?;
+    let (input, (date, comment)) = parse_survey_date_line(input)?;
+    let (input, team) = parse_survey_team(input)?;
+    let (input, parameters) = parse_survey_parameters(input)?;
+    let (input, _) = gobble_labels(input)?;
+    let (input, shots) = many0(parse_shot)(input)?;
+    let (input, _) = ws(tag("")).parse(input)?;
     Ok((
         input,
         Survey {
             cave_name,
-            survey_name,
-            survey_date: "".to_string(),
-            survey_comment: "".to_string(),
-            survey_team: "".to_string(),
-            declination: 0.0,
-            correction_factor_azimuth: 0.0,
-            correction_factor_inclination: 0.0,
-            correction_factor_length: 0.0,
-            back_sight_correction_factor_azimuth: 0.0,
-            back_sight_correction_factor_inclination: 0.0,
+            name,
+            date,
+            comment,
+            team,
+            parameters,
         },
     ))
 }
@@ -57,7 +174,9 @@ mod test {
     #[test]
     fn parse_example_data() {
         let input = include_str!("../../test_data/fulford.dat");
-        let (input, survey) = parse_survey(input).unwrap();
-        println!("{} Survey: {}", survey.cave_name, survey.survey_name);
+        let (input, surveys) = many0(parse_survey)(input).unwrap();
+        for survey in surveys {
+            println!("{} Survey: {}", survey.cave_name, survey.name);
+        }
     }
 }

@@ -4,7 +4,6 @@ use nom::{
     character::complete::{char, multispace0, u8},
     combinator::value,
     multi::many0,
-    number::complete::double,
     IResult, Parser,
 };
 
@@ -225,11 +224,8 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project> {
             ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
             ProjectElement::File(file_info) => survey_data.push(file_info),
             ProjectElement::PushFolder(folder) => folders.push(folder),
-            ProjectElement::PopFolder => {
-                if let Some(folder) = folders.pop() {
-                    println!("Popped folder: {}", folder);
-                }
-            }
+            ProjectElement::PopFolder => _ = folders.pop(),
+
             _ => (),
         }
     }

@@ -29,3 +29,10 @@ pub struct UtmLocation {
     pub zone: u8,
     pub convergence_angle: f64,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Date {
+    pub month: u8,
+    pub day: u8,
+    pub year: u16,
+}
