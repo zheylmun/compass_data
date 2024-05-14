@@ -39,6 +39,7 @@ pub struct Station {
 pub struct SurveyDataFile {
     file_path: String,
     fixed_stations: Vec<Station>,
+    survey_data: Vec<Survey>,
 }
 
 pub struct Project {
@@ -59,9 +60,21 @@ impl Project {
     }
 
     pub fn load_project_file(file_path: &str) -> Result<Self, String> {
+        let path = std::path::Path::new(file_path);
+        if !path.exists() {
+            return Err(format!("File not found: {}", file_path));
+        }
+        let path_root = path.parent().unwrap();
         let file_contents = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-        let (_, project) =
+        let (_, mut project) =
             parser::parse_compass_project(&file_contents).map_err(|e| e.to_string())?;
+        for file in project.survey_data.iter_mut() {
+            let dat_path = path_root.join(&file.file_path);
+            let dat_contents = std::fs::read_to_string(&dat_path).map_err(|e| e.to_string())?;
+            let (remaining, mut survey_data) =
+                survey::parser::parse_dat_file(&dat_contents).map_err(|e| e.to_string())?;
+            file.survey_data.append(&mut survey_data);
+        }
         Ok(project)
     }
 }

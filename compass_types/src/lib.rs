@@ -7,3 +7,15 @@ pub use project::{Datum, Project, SurveyDataFile};
 pub use survey::{
     parse_survey, BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters,
 };
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    #[test]
+    fn parse_compass_sample() {
+        let input = "test_data/fulfords.mak";
+        let loaded_project = Project::load_project_file(input).unwrap();
+        assert_eq!(loaded_project.survey_data.len(), 2);
+    }
+}

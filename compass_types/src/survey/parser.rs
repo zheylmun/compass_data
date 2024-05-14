@@ -165,6 +165,10 @@ pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
     ))
 }
 
+pub fn parse_dat_file(input: &str) -> IResult<&str, Vec<Survey>> {
+    many0(parse_survey)(input)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

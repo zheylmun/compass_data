@@ -164,6 +164,7 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
         ProjectElement::File(SurveyDataFile {
             file_path: file_path.to_string(),
             fixed_stations: stations,
+            survey_data: Vec::new(),
         }),
     ))
 }
