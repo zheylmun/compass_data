@@ -40,4 +40,12 @@ pub struct Survey {
     pub comment: Option<String>,
     pub team: String,
     pub parameters: SurveyParameters,
+    pub shots: Vec<Shot>,
+}
+
+pub fn parse_survey(input: &str) -> Result<Survey, String> {
+    match parser::parse_survey(input) {
+        Ok((_, survey)) => Ok(survey),
+        Err(e) => Err(e.to_string()),
+    }
 }

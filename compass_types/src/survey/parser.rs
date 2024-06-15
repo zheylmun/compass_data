@@ -1,12 +1,8 @@
 use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_till, take_till1, take_until1, take_while},
-    character::{
-        complete::{alpha1, char, multispace0, multispace1, not_line_ending, u8},
-        is_alphabetic,
-    },
+    bytes::complete::{tag, take_till1},
+    character::complete::{alpha1, multispace0, multispace1},
     error::Error,
-    multi::{self, many0},
+    multi::many0,
     sequence::Tuple,
     IResult, Parser,
 };
@@ -90,7 +86,7 @@ fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParameters> {
     let (parameter_line, declination) = parse_double(parameter_line)?;
     let (parameter_line, _) = tag("FORMAT:")(parameter_line)?;
     let (parameter_line, _) = multispace0(parameter_line)?;
-    let (parameter_line, format_string) = alpha1(parameter_line)?;
+    let (parameter_line, _) = alpha1(parameter_line)?;
     let (parameter_line, _) = multispace0(parameter_line)?;
     let correction_factor_result = parse_correction_factors(parameter_line);
     let (parameter_line, correction_factors) = match correction_factor_result {
@@ -129,7 +125,7 @@ fn parse_shot(input: &str) -> IResult<&str, Shot> {
     let (line, left) = parse_double(line)?;
     let (line, up) = parse_double(line)?;
     let (line, down) = parse_double(line)?;
-    let (line, right) = parse_double(line)?;
+    let (_, right) = parse_double(line)?;
     let shot = Shot {
         from: from.to_string(),
         to: to.to_string(),
@@ -146,7 +142,7 @@ fn parse_shot(input: &str) -> IResult<&str, Shot> {
     Ok((input, shot))
 }
 
-fn parse_survey(input: &str) -> IResult<&str, Survey> {
+pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
     let (input, cave_name) = parse_cave_name(input)?;
     let (input, name) = parse_survey_name(input)?;
     let (input, (date, comment)) = parse_survey_date_line(input)?;
@@ -164,6 +160,7 @@ fn parse_survey(input: &str) -> IResult<&str, Survey> {
             comment,
             team,
             parameters,
+            shots,
         },
     ))
 }

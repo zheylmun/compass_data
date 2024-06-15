@@ -1,10 +1,9 @@
 use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::take_while1,
     character::complete::{digit1, line_ending, multispace0, not_line_ending},
     error::ParseError,
-    number::complete::{double, i32},
-    sequence::{delimited, terminated},
+    number::complete::double,
+    sequence::delimited,
     IResult, Parser,
 };
 
