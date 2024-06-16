@@ -26,7 +26,7 @@ pub(crate) fn parse_double(input: &str) -> IResult<&str, f64> {
 }
 
 pub(crate) fn parse_station_name(input: &str) -> IResult<&str, &str> {
-    let (input, name) = ws(take_while1(|c| is_valid_station_name_char(c))).parse(input)?;
+    let (input, name) = ws(take_while1(is_valid_station_name_char)).parse(input)?;
     Ok((input, name))
 }
 
