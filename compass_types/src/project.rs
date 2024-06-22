@@ -74,7 +74,7 @@ impl Project {
         for file in project.survey_data.iter_mut() {
             let dat_path = path_root.join(&file.file_path);
             let dat_contents = std::fs::read_to_string(&dat_path).map_err(|e| e.to_string())?;
-            let (remaining, mut survey_data) =
+            let (_, mut survey_data) =
                 survey::parser::parse_dat_file(&dat_contents).map_err(|e| e.to_string())?;
             file.survey_data.append(&mut survey_data);
         }
