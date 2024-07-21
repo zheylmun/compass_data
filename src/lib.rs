@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn parse_compass_sample() {
-        let input = include_str!("../test_data/Fulfords.mak");
+        let input = "../test_data/Fulfords.mak";
         let loaded_project = Project::load_project_file(input).unwrap();
         assert_eq!(loaded_project.survey_data.len(), 2);
     }
