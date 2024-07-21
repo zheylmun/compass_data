@@ -12,11 +12,13 @@ pub use survey::{
 mod tests {
 
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn parse_compass_sample() {
-        let input = "../test_data/Fulfords.mak";
-        let loaded_project = Project::load_project_file(input).unwrap();
+        let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        sample_path.push("test_data/Fulfords.mak");
+        let loaded_project = Project::load_project(&sample_path).unwrap();
         assert_eq!(loaded_project.survey_data.len(), 2);
     }
 }

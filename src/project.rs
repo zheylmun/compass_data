@@ -1,5 +1,7 @@
 mod parser;
 
+use std::path::Path;
+
 use crate::{
     survey::{self, Survey},
     EastNorthUp, UtmLocation,
@@ -62,13 +64,13 @@ impl Project {
         }
     }
 
-    pub fn load_project_file(file_path: &str) -> Result<Self, String> {
-        let path = std::path::Path::new(file_path);
+    pub fn load_project(file_path: impl AsRef<Path>) -> Result<Self, String> {
+        let path = file_path.as_ref();
         if !path.exists() {
-            return Err(format!("File not found: {}", file_path));
+            return Err(format!("File not found: {}", path.display()));
         }
         let path_root = path.parent().unwrap();
-        let file_contents = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+        let file_contents = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
         let (_, mut project) =
             parser::parse_compass_project(&file_contents).map_err(|e| e.to_string())?;
         for file in project.survey_data.iter_mut() {
