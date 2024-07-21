@@ -1,8 +1,16 @@
 # Compass Survey Format
 
-The Compass survey data files contain all the original measurements and associated information that make up the original survey data. They are ordinarily created by the Compass Survey Editor; but under special circumstances, they can be edited with an ordinary text editor as long as the file format is maintained.. Warning! Unless you have a thorough understanding of your editor and ASCII character codes, it is not advisable to directly edit Compass survey files. Most word processor will change the format of the survey data and this will corrupt the data. If you need to directly edit survey data, you should use XEDIT, a text editor that was designed to not corrupt ASCII data. It is available on the Fountain home page or on the Compass CD-ROM.
+The Compass survey data files contain all the original measurements and associated information that make up the original survey data.
+They are ordinarily created by the Compass Survey Editor;
+but under special circumstances, they can be edited with an ordinary text editor as long as the file format is maintained..
+Warning! Unless you have a thorough understanding of your editor and ASCII character codes, it is not advisable to directly edit Compass survey files.
+Most word processor will change the format of the survey data and this will corrupt the data.
+If you need to directly edit survey data, you should use XEDIT, a text editor that was designed to not corrupt ASCII data.
+It is available on the Fountain home page or on the Compass CD-ROM.
 
-This section describes in detail the current raw survey data format. Listed below you will see a sample survey file. The layout has been compressed slightly so the file will fit on the page, but all the fields are correct:
+This section describes in detail the current raw survey data format.
+Listed below you will see a sample survey file.
+The layout has been compressed slightly so the file will fit on the page, but all the fields are correct:
 
 ```Compass
 SECRET CAVE
