@@ -72,6 +72,7 @@ pub struct Survey {
 }
 
 impl Survey {
+    #[must_use]
     pub fn serialize(&self) -> String {
         let mut result = String::new();
         result.push_str(&format!("{}\r\n", self.cave_name));
@@ -85,7 +86,7 @@ impl Survey {
         } else {
             result.push_str("\r\n");
         }
-        result.push_str(&format!("SURVEY TEAM:\r\n"));
+        result.push_str("SURVEY TEAM:\r\n");
         result.push_str(&format!("{}\r\n", self.team));
         result.push_str(&self.parameters.serialize());
         result.push_str("FROM\n");

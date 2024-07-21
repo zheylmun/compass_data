@@ -256,9 +256,9 @@ mod tests {
         let (input, project) = parse_compass_project(input).unwrap();
         assert!(input.is_empty());
         let ene = project.base_location.east_north_elevation;
-        assert_float_eq!(ene.east, 398315.500, rmax <= 0.001);
-        assert_float_eq!(ene.north, 4483735.300, rmax <= 0.001);
-        assert_float_eq!(ene.up, 3048.000, rmax <= 0.001);
+        assert_float_eq!(ene.east, 398_315.500, rmax <= 0.001);
+        assert_float_eq!(ene.north, 4_483_735.300, rmax <= 0.001);
+        assert_float_eq!(ene.up, 3_048.000, rmax <= 0.001);
         assert!(project.base_location.zone == 13);
         assert_float_eq!(
             project.base_location.convergence_angle,
@@ -280,6 +280,6 @@ mod tests {
         assert!(project.base_location.zone == 13);
         assert!(project.base_location.convergence_angle == -1.050_f64);
         assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(project.survey_data.len() > 0)
+        assert!(!project.survey_data.is_empty())
     }
 }
