@@ -18,9 +18,9 @@ mod tests {
     fn parse_compass_sample() {
         let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         sample_path.push("test_data/Fulfords.mak");
-        println!("Sample path: {:?}", sample_path);
+        let canonicalized_path = sample_path.canonicalize().unwrap();
 
-        let loaded_project = Project::load_project(&sample_path).unwrap();
+        let loaded_project = Project::load_project(&canonicalized_path).unwrap();
         assert_eq!(loaded_project.survey_data.len(), 2);
     }
 }
