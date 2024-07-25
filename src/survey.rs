@@ -16,13 +16,13 @@ pub struct BackSightCorrectionFactors {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurveyParameters {
+pub struct Parameters {
     pub declination: f64,
     pub correction_factors: Option<CorrectionFactors>,
     pub backsight_correction_factors: Option<BackSightCorrectionFactors>,
 }
 
-impl SurveyParameters {
+impl Parameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
         result.push_str(&format!("DECLINATION: {:.2}", self.declination));
@@ -67,11 +67,22 @@ pub struct Survey {
     pub date: Date,
     pub comment: Option<String>,
     pub team: String,
-    pub parameters: SurveyParameters,
+    pub parameters: Parameters,
     pub shots: Vec<Shot>,
 }
 
 impl Survey {
+    /// Parse a survey from a string
+    /// # Arguments
+    /// input - A string containing the survey data
+    /// # Returns
+    /// Result containing the parsed survey or an error message
+    pub fn parse(input: &str) -> Result<Self, String> {
+        match parser::parse_survey(input) {
+            Ok((_, survey)) => Ok(survey),
+            Err(e) => Err(e.to_string()),
+        }
+    }
     #[must_use]
     pub fn serialize(&self) -> String {
         let mut result = String::new();
@@ -82,7 +93,7 @@ impl Survey {
             self.date.month, self.date.day, self.date.year
         ));
         if let Some(comment) = &self.comment {
-            result.push_str(&format!(" COMMENT: {}\r\n", comment));
+            result.push_str(&format!(" COMMENT: {comment}\r\n"));
         } else {
             result.push_str("\r\n");
         }
@@ -106,12 +117,5 @@ impl Survey {
         }
         result.push_str("\x0c\n");
         result
-    }
-}
-
-pub fn parse_survey(input: &str) -> Result<Survey, String> {
-    match parser::parse_survey(input) {
-        Ok((_, survey)) => Ok(survey),
-        Err(e) => Err(e.to_string()),
     }
 }

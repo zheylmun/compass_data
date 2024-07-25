@@ -10,10 +10,12 @@ pub struct EastNorthUp {
 }
 
 impl EastNorthUp {
+    #[must_use]
     pub fn from_meters(east: f64, north: f64, up: f64) -> Self {
         Self { east, north, up }
     }
 
+    #[must_use]
     pub fn from_feet(east: f64, north: f64, up: f64) -> Self {
         Self {
             east: east * FEET_TO_METERS,

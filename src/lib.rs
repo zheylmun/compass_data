@@ -4,9 +4,7 @@ mod project;
 mod survey;
 pub use common_types::{EastNorthUp, UtmLocation};
 pub use project::{Datum, Project, SurveyDataFile};
-pub use survey::{
-    parse_survey, BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters,
-};
+pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 #[cfg(test)]
 mod tests {

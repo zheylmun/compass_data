@@ -12,7 +12,7 @@ use crate::{
     parser_utils::{parse_double, parse_station_name, parse_uint, recognize_line, ws},
 };
 
-use super::{BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters};
+use super::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 fn parse_cave_name(input: &str) -> IResult<&str, String> {
     let (input, cave_name) = recognize_line(input)?;
@@ -80,7 +80,7 @@ fn parse_backsight_correction_factors(input: &str) -> IResult<&str, BackSightCor
     ))
 }
 
-fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParameters> {
+fn parse_survey_parameters(input: &str) -> IResult<&str, Parameters> {
     let (input, parameter_line) = recognize_line(input)?;
     let (parameter_line, _) = tag("DECLINATION:")(parameter_line)?;
     let (parameter_line, declination) = parse_double(parameter_line)?;
@@ -101,7 +101,7 @@ fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParameters> {
 
     Ok((
         input,
-        SurveyParameters {
+        Parameters {
             declination,
             correction_factors,
             backsight_correction_factors,
