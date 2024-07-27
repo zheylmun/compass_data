@@ -1,6 +1,6 @@
 use crate::common_types::Date;
 
-pub mod parser;
+mod parser;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CorrectionFactors {
@@ -77,8 +77,15 @@ impl Survey {
     /// input - A string containing the survey data
     /// # Returns
     /// Result containing the parsed survey or an error message
-    pub fn parse(input: &str) -> Result<Self, String> {
+    pub fn parse_survey(input: &str) -> Result<Self, String> {
         match parser::parse_survey(input) {
+            Ok((_, survey)) => Ok(survey),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    pub fn parse_dat_file(input: &str) -> Result<Vec<Self>, String> {
+        match parser::parse_dat_file(input) {
             Ok((_, survey)) => Ok(survey),
             Err(e) => Err(e.to_string()),
         }

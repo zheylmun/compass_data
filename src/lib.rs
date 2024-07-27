@@ -1,9 +1,12 @@
+//! [![GitHub]](https://github.com/zheylmun/compass_data)
 mod common_types;
+mod error;
 mod parser_utils;
 mod project;
 mod survey;
 pub use common_types::{EastNorthUp, UtmLocation};
-pub use project::{Datum, Project, SurveyDataFile};
+pub use error::Error;
+pub use project::{Datum, ProjectFile, SurveyDataFile};
 pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 #[cfg(test)]
@@ -16,9 +19,8 @@ mod tests {
     fn parse_compass_sample() {
         let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         sample_path.push("test_data/Fulfords.mak");
-        let canonicalized_path = sample_path.canonicalize().unwrap();
 
-        let loaded_project = Project::load_project(&canonicalized_path).unwrap();
-        assert_eq!(loaded_project.survey_data.len(), 2);
+        let loaded_project = ProjectFile::read(&sample_path).unwrap();
+        assert_eq!(loaded_project.survey_data_files.len(), 2);
     }
 }

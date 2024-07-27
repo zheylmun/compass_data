@@ -175,9 +175,6 @@ mod test {
     #[test]
     fn parse_example_data() {
         let input = include_str!("../../test_data/Fulford.dat");
-        let (_input, surveys) = many0(parse_survey)(input).unwrap();
-        for survey in surveys {
-            println!("{} Survey: {}", survey.cave_name, survey.name);
-        }
+        let (_input, _surveys) = many0(parse_survey)(input).unwrap();
     }
 }
