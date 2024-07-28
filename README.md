@@ -1,4 +1,4 @@
-# Compass Types
+# Compass Data
 
 Small library for loading, working with, and generating [Compass](https://www.fountainware.com/compass/index.htm) survey project and survey files. Please note that there are no plans to load plot files.
 The goal is to enable interop between survey software,

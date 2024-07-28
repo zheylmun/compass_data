@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "compass_types"
+name = "compass_data"
 version = "0.1.0"
 dependencies = [
  "float_eq",
