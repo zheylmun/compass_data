@@ -266,7 +266,7 @@ mod tests {
             rmax <= 0.001
         );
         assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(project.survey_data_files.len() == 17)
+        assert!(project.survey_data_files.len() == 17);
     }
 
     #[test]
@@ -274,12 +274,16 @@ mod tests {
         let sample_project = include_str!("../../test_data/Fulfords.mak");
         let (_, project) = parse_compass_project(sample_project).unwrap();
         let enu = project.base_location.east_north_elevation;
-        assert!(enu.east == 357715.717_f64);
-        assert!(enu.north == 4372837.574_f64);
-        assert!(enu.up == 3048_f64);
+        assert_float_eq!(enu.east, 357_715.717_f64, rmax <= 0.001);
+        assert_float_eq!(enu.north, 4_372_837.574_f64, rmax <= 0.001);
+        assert_float_eq!(enu.up, 3_048_f64, rmax <= 0.001);
         assert!(project.base_location.zone == 13);
-        assert!(project.base_location.convergence_angle == -1.050_f64);
+        assert_float_eq!(
+            project.base_location.convergence_angle,
+            -1.050_f64,
+            rmax <= 0.001
+        );
         assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(!project.survey_data_files.is_empty())
+        assert!(!project.survey_data_files.is_empty());
     }
 }
