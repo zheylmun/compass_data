@@ -77,6 +77,8 @@ impl Survey {
     /// input - A string containing the survey data
     /// # Returns
     /// Result containing the parsed survey or an error message
+    /// # Errors
+    /// If the input is not a valid survey
     pub fn parse_survey(input: &str) -> Result<Self, String> {
         match parser::parse_survey(input) {
             Ok((_, survey)) => Ok(survey),
@@ -84,12 +86,20 @@ impl Survey {
         }
     }
 
+    /// Parse the contents of a survey.dat file
+    /// # Arguments
+    /// input - A string containing the contents of the survey.dat file
+    /// # Returns
+    /// Result containing the parsed survey or an error message
+    /// # Errors
+    /// If the input is not a valid survey.dat file
     pub fn parse_dat_file(input: &str) -> Result<Vec<Self>, String> {
         match parser::parse_dat_file(input) {
             Ok((_, survey)) => Ok(survey),
             Err(e) => Err(e.to_string()),
         }
     }
+
     #[must_use]
     pub fn serialize(&self) -> String {
         let mut result = String::new();

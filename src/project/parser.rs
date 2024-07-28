@@ -12,7 +12,7 @@ use crate::{
     EastNorthUp,
 };
 
-use super::{Datum, ProjectFile, ProjectStation, SurveyDataFile, UtmLocation};
+use super::{Datum, Project, Station, SurveyFileInfo, Unloaded, UtmLocation};
 
 #[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
@@ -21,7 +21,7 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    File(SurveyDataFile),
+    File(SurveyFileInfo),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -129,7 +129,7 @@ fn parse_station_fix(input: &str) -> IResult<&str, EastNorthUp> {
 }
 
 // Each station is a comma separated list of station name and optional fixed location
-fn parse_station(input: &str) -> IResult<&str, ProjectStation> {
+fn parse_station(input: &str) -> IResult<&str, Station> {
     let (input, _) = char(',')(input)?;
     let (input, _) = many0(parse_comment)(input)?;
     let (input, station_name) = ws(take_till(|c| !is_valid_station_name_char(c))).parse(input)?;
@@ -137,7 +137,7 @@ fn parse_station(input: &str) -> IResult<&str, ProjectStation> {
     if let Ok((input, fix)) = station_fixed {
         Ok((
             input,
-            ProjectStation {
+            Station {
                 name: station_name.to_string(),
                 location: Some(fix),
             },
@@ -145,7 +145,7 @@ fn parse_station(input: &str) -> IResult<&str, ProjectStation> {
     } else {
         Ok((
             input,
-            ProjectStation {
+            Station {
                 name: station_name.to_string(),
                 location: None,
             },
@@ -161,7 +161,7 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(';')(input)?;
     Ok((
         input,
-        ProjectElement::File(SurveyDataFile {
+        ProjectElement::File(SurveyFileInfo {
             file_path: file_path.to_string(),
             project_stations: stations,
         }),
@@ -208,18 +208,18 @@ fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
     ))(input)
 }
 
-pub fn parse_compass_project(input: &str) -> IResult<&str, ProjectFile> {
+pub fn parse_compass_project(input: &str) -> IResult<&str, Project<Unloaded>> {
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<SurveyDataFile> = Vec::new();
+    let mut survey_data_files: Vec<SurveyFileInfo> = Vec::new();
     let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
         input = munched;
         match element {
             ProjectElement::BaseLocation(parsed_base_location) => {
-                base_location = Some(parsed_base_location)
+                base_location = Some(parsed_base_location);
             }
             ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
             ProjectElement::File(file_info) => survey_data_files.push(file_info),
@@ -232,11 +232,12 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, ProjectFile> {
     if let (Some(base_location), Some(datum)) = (base_location, datum) {
         Ok((
             input,
-            ProjectFile {
+            Project {
                 base_location,
                 datum,
                 survey_data_files,
                 utm_zone: None,
+                state: Unloaded,
             },
         ))
     } else {

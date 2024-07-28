@@ -38,6 +38,7 @@ fn parse_survey_date_line(input: &str) -> IResult<&str, (Date, Option<String>)> 
         Ok((comment, _)) => Some(comment.to_string()),
         Err(_unused) => None,
     };
+    #[allow(clippy::cast_possible_truncation)]
     let date = Date {
         month: month as u8,
         day: day as u8,
