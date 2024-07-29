@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_till, take_till1, take_until1},
@@ -164,6 +166,7 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
         ProjectElement::File(SurveyFile {
             file_path: file_path.to_string(),
             project_stations: stations,
+            surveys: vec![],
         }),
     ))
 }
@@ -208,7 +211,7 @@ fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
     ))(input)
 }
 
-pub fn parse_compass_project(input: &str) -> IResult<&str, Project<Unloaded>> {
+pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, Project<Unloaded>> {
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
@@ -233,6 +236,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project<Unloaded>> {
         Ok((
             input,
             Project {
+                file_path,
                 base_location,
                 datum,
                 survey_files: survey_data_files,
@@ -252,8 +256,10 @@ mod tests {
     use super::*;
     #[test]
     fn parse_format_examples() {
-        let input = include_str!("../../test_data/project_file_examples");
-        let (input, project) = parse_compass_project(input).unwrap();
+        const FILE_PATH: &str = "../../test_data/project_file_examples";
+        let input = include_str!(FILE_PATH);
+        let file_path = PathBuf::from(FILE_PATH);
+        let (input, project) = parse_compass_project(file_path, input).unwrap();
         assert!(input.is_empty());
         let ene = project.base_location.east_north_elevation;
         assert_float_eq!(ene.east, 398_315.500, rmax <= 0.001);

@@ -6,7 +6,7 @@
 //! [Compass Project Documentation](https://www.fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm)
 
 mod parser;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{EastNorthUp, Error, Survey, UtmLocation};
 
@@ -50,6 +50,7 @@ pub struct Station {
 pub struct SurveyFile {
     pub file_path: String,
     pub project_stations: Vec<Station>,
+    pub surveys: Vec<Survey>,
 }
 
 pub struct Unloaded;
@@ -57,6 +58,7 @@ pub struct Loaded;
 pub struct Validated;
 
 pub struct Project<S> {
+    pub file_path: PathBuf,
     pub base_location: UtmLocation,
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
@@ -75,12 +77,12 @@ impl Project<Unloaded> {
     /// - [`Error::ProjectFileNotFound`] If the file does not exist
     /// - [`Error::CouldntReadFile`] If the file cannot be read
     pub fn read(file_path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path = file_path.as_ref();
+        let path = file_path.as_ref().to_path_buf();
         if !path.exists() {
-            return Err(Error::ProjectFileNotFound(path.into()));
+            return Err(Error::ProjectFileNotFound(path));
         }
-        let file_contents = std::fs::read_to_string(path)?;
-        let (_, project) = parser::parse_compass_project(&file_contents)
+        let file_contents = std::fs::read_to_string(&path)?;
+        let (_, project) = parser::parse_compass_project(path, &file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
         Ok(project)
     }
@@ -96,13 +98,31 @@ impl Project<Loaded> {
         datum: Datum,
         utm_zone: Option<u8>,
     ) -> Self {
+        let file_path = file_path.as_ref().to_path_buf();
         Self {
+            file_path,
             base_location,
             datum,
             utm_zone,
             survey_files: Vec::new(),
             state: Loaded,
         }
+    }
+
+    /// Validate the project
+    /// Ensure tha all from-stations in the survey files are present in the project and available for reference
+    /// # Errors
+    /// - [`Error::StationNotFound`] If a station referenced in a survey file is not available
+    pub fn validate(self) -> Result<Project<Validated>, Error> {
+        //Validate stations in here
+        Ok(Project {
+            file_path: self.file_path,
+            base_location: self.base_location,
+            datum: self.datum,
+            utm_zone: self.utm_zone,
+            survey_files: self.survey_files,
+            state: Validated,
+        })
     }
 }
 

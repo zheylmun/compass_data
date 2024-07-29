@@ -14,4 +14,6 @@ pub enum Error {
     CouldntParseSurveyData(String),
     #[error("Error parsing Survey: {0}")]
     CouldntParseSurvey(String),
+    #[error("Station not found: {0}")]
+    StationNotFound(String),
 }
