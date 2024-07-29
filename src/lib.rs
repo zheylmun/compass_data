@@ -1,4 +1,4 @@
-//! [![GitHub]](https://github.com/zheylmun/compass_data)
+//! [![Static Badge](https://img.shields.io/badge/GitHub-gray?style=for-the-badge&logo=GitHub)](https://github.com/zheylmun/compass_data)
 mod common_types;
 mod error;
 mod parser_utils;
@@ -6,7 +6,7 @@ mod project;
 mod survey;
 pub use common_types::{EastNorthUp, UtmLocation};
 pub use error::Error;
-pub use project::{Datum, Project, SurveyFileInfo};
+pub use project::{Datum, Project, SurveyFile};
 pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 #[cfg(test)]
@@ -23,6 +23,6 @@ mod tests {
         sample_path.push("test_data/Fulfords.mak");
 
         let loaded_project = Project::read(&sample_path).unwrap();
-        assert_eq!(loaded_project.survey_data_files.len(), 2);
+        assert_eq!(loaded_project.survey_files.len(), 2);
     }
 }

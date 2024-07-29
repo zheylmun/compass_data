@@ -12,7 +12,7 @@ use crate::{
     EastNorthUp,
 };
 
-use super::{Datum, Project, Station, SurveyFileInfo, Unloaded, UtmLocation};
+use super::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation};
 
 #[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
@@ -21,7 +21,7 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    File(SurveyFileInfo),
+    File(SurveyFile),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -161,7 +161,7 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(';')(input)?;
     Ok((
         input,
-        ProjectElement::File(SurveyFileInfo {
+        ProjectElement::File(SurveyFile {
             file_path: file_path.to_string(),
             project_stations: stations,
         }),
@@ -212,7 +212,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project<Unloaded>> {
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<SurveyFileInfo> = Vec::new();
+    let mut survey_data_files: Vec<SurveyFile> = Vec::new();
     let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
@@ -235,7 +235,7 @@ pub fn parse_compass_project(input: &str) -> IResult<&str, Project<Unloaded>> {
             Project {
                 base_location,
                 datum,
-                survey_data_files,
+                survey_files: survey_data_files,
                 utm_zone: None,
                 state: Unloaded,
             },
@@ -266,7 +266,7 @@ mod tests {
             rmax <= 0.001
         );
         assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(project.survey_data_files.len() == 17);
+        assert!(project.survey_files.len() == 17);
     }
 
     #[test]
@@ -284,6 +284,6 @@ mod tests {
             rmax <= 0.001
         );
         assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(!project.survey_data_files.is_empty());
+        assert!(!project.survey_files.is_empty());
     }
 }

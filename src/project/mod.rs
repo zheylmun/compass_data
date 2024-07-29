@@ -10,9 +10,9 @@ use std::path::Path;
 
 use crate::{EastNorthUp, Error, Survey, UtmLocation};
 
-/// Compass projects can be defined in a variety of geodetic datums
-/// The datum is used to convert between the geodetic coordinates used in the survey data
-/// This enum provides a list of the datums supported by Compass
+/// Compass projects can be defined in a variety of geodetic datums.
+/// The datum is used to convert between the geodetic coordinates used in the survey data.
+/// This enum provides a list of the datums supported by Compass.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Datum {
     Adindan,
@@ -47,34 +47,33 @@ pub struct Station {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurveyFileInfo {
+pub struct SurveyFile {
     pub file_path: String,
     pub project_stations: Vec<Station>,
 }
 
 pub struct Unloaded;
-pub struct Loaded {
-    pub survey_data: Vec<Survey>,
-}
+pub struct Loaded;
+pub struct Validated;
 
 pub struct Project<S> {
     pub base_location: UtmLocation,
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
     pub utm_zone: Option<u8>,
-    pub survey_data_files: Vec<SurveyFileInfo>,
+    pub survey_files: Vec<SurveyFile>,
     pub state: S,
 }
 
 impl Project<Unloaded> {
-    /// # Read a Compass project file from disk
+    /// Read a Compass project file from disk
     /// The project file is read from disk and parsed into a `ProjectFile` struct,
     /// but this does not parse the referenced survey data files
     /// # Returns
     /// `ProjectFile` representing the contents of the project file
     /// # Errors
-    /// - `Error::ProjectFileNotFound` If the file does not exist
-    /// - `Error::FileReadError` If the file cannot be read
+    /// - [`Error::ProjectFileNotFound`] If the file does not exist
+    /// - [`Error::CouldntReadFile`] If the file cannot be read
     pub fn read(file_path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = file_path.as_ref();
         if !path.exists() {
@@ -86,17 +85,23 @@ impl Project<Unloaded> {
         Ok(project)
     }
 }
+
 impl Project<Loaded> {
+    /// Programmatically create a new compass project
+    ///
     #[must_use]
-    pub fn new(base_location: UtmLocation, datum: Datum, utm_zone: Option<u8>) -> Self {
+    pub fn new(
+        file_path: impl AsRef<Path>,
+        base_location: UtmLocation,
+        datum: Datum,
+        utm_zone: Option<u8>,
+    ) -> Self {
         Self {
             base_location,
             datum,
             utm_zone,
-            survey_data_files: Vec::new(),
-            state: Loaded {
-                survey_data: Vec::new(),
-            },
+            survey_files: Vec::new(),
+            state: Loaded,
         }
     }
 }
@@ -120,6 +125,6 @@ mod tests {
         sample_path.push("test_data/Fulfords.mak");
 
         let loaded_project = Project::read(&sample_path).unwrap();
-        assert_eq!(loaded_project.survey_data_files.len(), 2);
+        assert_eq!(loaded_project.survey_files.len(), 2);
     }
 }

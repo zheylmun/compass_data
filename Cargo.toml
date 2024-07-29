@@ -1,7 +1,8 @@
 [package]
 name = "compass_data"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+
 
 [dependencies]
 nom = "7.1.3"
