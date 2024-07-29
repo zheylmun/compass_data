@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn parse_format_examples() {
         const FILE_PATH: &str = "../../test_data/project_file_examples";
-        let input = include_str!(FILE_PATH);
+        let input = include_str!("../../test_data/project_file_examples");
         let file_path = PathBuf::from(FILE_PATH);
         let (input, project) = parse_compass_project(file_path, input).unwrap();
         assert!(input.is_empty());
@@ -278,7 +278,8 @@ mod tests {
     #[test]
     fn parse_compass_sample_project() {
         let sample_project = include_str!("../../test_data/Fulfords.mak");
-        let (_, project) = parse_compass_project(sample_project).unwrap();
+        let file_path = PathBuf::from("../../test_data/Fulfords.mak");
+        let (_, project) = parse_compass_project(file_path, sample_project).unwrap();
         let enu = project.base_location.east_north_elevation;
         assert_float_eq!(enu.east, 357_715.717_f64, rmax <= 0.001);
         assert_float_eq!(enu.north, 4_372_837.574_f64, rmax <= 0.001);
