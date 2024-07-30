@@ -4,7 +4,7 @@ version = "0.0.1"
 edition = "2021"
 authors = ["Zach Heylmun <zheylmun@gmail.com>"]
 description = "A library for working with Compass cave survey data"
-license = "MIT or Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/zheylmun/compass_data"
 
 
