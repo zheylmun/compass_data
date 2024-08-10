@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{EastNorthUp, Error, Survey, UtmLocation};
+use crate::{EastNorthElevation, Error, Survey, UtmLocation};
 
 /// Compass projects can be defined in a variety of geodetic datums.
 /// The datum is used to convert between the geodetic coordinates used in the survey data.
@@ -46,7 +46,7 @@ pub enum Datum {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Station {
     name: String,
-    location: Option<EastNorthUp>,
+    location: Option<EastNorthElevation>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,7 +113,7 @@ impl Project<Unloaded> {
         // This unwrap is safe because we know the file path exists, and therefore so must the parent directory
         let project_dir = self.file_path.parent().unwrap();
         for survey_file in self.survey_files {
-            let survey_file = survey_file.load(&project_dir)?;
+            let survey_file = survey_file.load(project_dir)?;
             survey_files.push(survey_file);
         }
         Ok(Project {
@@ -151,10 +151,25 @@ impl Project<Loaded> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Error;
+    use crate::{common_types::EastNorthElevation, Error};
 
     use super::*;
     use std::path::PathBuf;
+    #[test]
+    fn programatic_creation() {
+        let east_north_elevation = EastNorthElevation::from_meters(336_083.0, 3_301_724.0, 6.0);
+        let new_project = Project::new(
+            "Ginnie.mak",
+            UtmLocation {
+                east_north_elevation,
+                zone: 17,
+                convergence_angle: 1.257286,
+            },
+            Datum::Wgs1984,
+            None,
+        );
+        assert!(new_project.survey_files.is_empty());
+    }
     #[test]
     fn bad_path() {
         let path = PathBuf::from("does_not_exist.mak");
