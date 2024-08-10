@@ -101,16 +101,18 @@ impl Project<Unloaded> {
         if !path.exists() {
             return Err(Error::ProjectFileNotFound(path));
         }
-        let file_contents = std::fs::read_to_string(&path)
-            .map_err(|e| Error::CouldntReadFile(e, path.to_path_buf()))?;
+        let file_contents =
+            std::fs::read_to_string(&path).map_err(|e| Error::CouldntReadFile(e, path.clone()))?;
         let (_, project) = parser::parse_compass_project(path, &file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
         Ok(project)
     }
 
+    #[allow(clippy::missing_panics_doc)]
     pub fn load_survey_files(self) -> Result<Project<Loaded>, Error> {
         let mut survey_files = Vec::new();
-        // This unwrap is safe because we know the file path exists, and therefore so must the parent directory
+        // This unwrap is safe because we know the file path existed to read this project
+        // therefore the parent directory must exist
         let project_dir = self.file_path.parent().unwrap();
         for survey_file in self.survey_files {
             let survey_file = survey_file.load(project_dir)?;
@@ -163,7 +165,7 @@ mod tests {
             UtmLocation {
                 east_north_elevation,
                 zone: 17,
-                convergence_angle: 1.257286,
+                convergence_angle: 1.257_286,
             },
             Datum::Wgs1984,
             None,
