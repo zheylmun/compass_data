@@ -1,12 +1,15 @@
-//! Compass project
+//! Compass Project
 //!
 //! This module provides the ability to read, write, and work with Compass project files
 //! Compass project files are stored in a flexible makefile format
 //! The compass file format is documented here:
 //! [Compass Project Documentation](https://www.fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm)
-
 mod parser;
-use std::path::{Path, PathBuf};
+
+use std::{
+    marker::PhantomData,
+    path::{Path, PathBuf},
+};
 
 use crate::{EastNorthUp, Error, Survey, UtmLocation};
 
@@ -47,15 +50,32 @@ pub struct Station {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurveyFile {
-    pub file_path: String,
+pub struct Unloaded;
+#[derive(Clone, Debug, PartialEq)]
+pub struct Loaded;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurveyFile<S> {
+    pub file_path: PathBuf,
     pub project_stations: Vec<Station>,
-    pub surveys: Vec<Survey>,
+    surveys: Vec<Survey>,
+    state: PhantomData<S>,
 }
 
-pub struct Unloaded;
-pub struct Loaded;
-pub struct Validated;
+impl SurveyFile<Unloaded> {
+    pub fn load(self, project_path: &Path) -> Result<SurveyFile<Loaded>, Error> {
+        let full_path = project_path.join(&self.file_path);
+        let file_contents = std::fs::read_to_string(&full_path)
+            .map_err(|e| Error::CouldntReadFile(e, self.file_path.clone()))?;
+        let surveys = Survey::parse_dat_file(&file_contents)?;
+        Ok(SurveyFile {
+            file_path: self.file_path,
+            project_stations: self.project_stations,
+            surveys,
+            state: PhantomData,
+        })
+    }
+}
 
 pub struct Project<S> {
     pub file_path: PathBuf,
@@ -63,8 +83,8 @@ pub struct Project<S> {
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
     pub utm_zone: Option<u8>,
-    pub survey_files: Vec<SurveyFile>,
-    pub state: S,
+    pub survey_files: Vec<SurveyFile<S>>,
+    state: PhantomData<S>,
 }
 
 impl Project<Unloaded> {
@@ -81,10 +101,29 @@ impl Project<Unloaded> {
         if !path.exists() {
             return Err(Error::ProjectFileNotFound(path));
         }
-        let file_contents = std::fs::read_to_string(&path)?;
+        let file_contents = std::fs::read_to_string(&path)
+            .map_err(|e| Error::CouldntReadFile(e, path.to_path_buf()))?;
         let (_, project) = parser::parse_compass_project(path, &file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
         Ok(project)
+    }
+
+    pub fn load_survey_files(self) -> Result<Project<Loaded>, Error> {
+        let mut survey_files = Vec::new();
+        // This unwrap is safe because we know the file path exists, and therefore so must the parent directory
+        let project_dir = self.file_path.parent().unwrap();
+        for survey_file in self.survey_files {
+            let survey_file = survey_file.load(&project_dir)?;
+            survey_files.push(survey_file);
+        }
+        Ok(Project {
+            file_path: self.file_path,
+            base_location: self.base_location,
+            datum: self.datum,
+            utm_zone: self.utm_zone,
+            survey_files,
+            state: PhantomData::<Loaded>,
+        })
     }
 }
 
@@ -105,24 +144,8 @@ impl Project<Loaded> {
             datum,
             utm_zone,
             survey_files: Vec::new(),
-            state: Loaded,
+            state: PhantomData::<Loaded>,
         }
-    }
-
-    /// Validate the project
-    /// Ensure tha all from-stations in the survey files are present in the project and available for reference
-    /// # Errors
-    /// - [`Error::StationNotFound`] If a station referenced in a survey file is not available
-    pub fn validate(self) -> Result<Project<Validated>, Error> {
-        //Validate stations in here
-        Ok(Project {
-            file_path: self.file_path,
-            base_location: self.base_location,
-            datum: self.datum,
-            utm_zone: self.utm_zone,
-            survey_files: self.survey_files,
-            state: Validated,
-        })
     }
 }
 
@@ -140,11 +163,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_compass_sample() {
+    fn parse_and_load_compass_sample() {
         let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         sample_path.push("test_data/Fulfords.mak");
 
-        let loaded_project = Project::read(&sample_path).unwrap();
-        assert_eq!(loaded_project.survey_files.len(), 2);
+        let read_project = Project::read(&sample_path).unwrap();
+        assert_eq!(read_project.survey_files.len(), 2);
+        let _loaded_project = read_project.load_survey_files().unwrap();
     }
 }

@@ -1,4 +1,4 @@
-use crate::common_types::Date;
+use crate::{common_types::Date, Error};
 
 mod parser;
 
@@ -93,10 +93,10 @@ impl Survey {
     /// Result containing the parsed survey or an error message
     /// # Errors
     /// If the input is not a valid survey.dat file
-    pub fn parse_dat_file(input: &str) -> Result<Vec<Self>, String> {
+    pub fn parse_dat_file(input: &str) -> Result<Vec<Self>, Error> {
         match parser::parse_dat_file(input) {
             Ok((_, survey)) => Ok(survey),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(Error::CouldntParseSurvey(e.to_string())),
         }
     }
 

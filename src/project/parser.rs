@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_till, take_till1, take_until1},
@@ -8,13 +6,13 @@ use nom::{
     multi::many0,
     IResult, Parser,
 };
+use std::{marker::PhantomData, path::PathBuf};
 
 use crate::{
     parser_utils::{is_valid_station_name_char, parse_double, ws},
+    project::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation},
     EastNorthUp,
 };
-
-use super::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation};
 
 #[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
@@ -23,7 +21,7 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    File(SurveyFile),
+    File(SurveyFile<Unloaded>),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -161,12 +159,14 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
         ws(take_till1(|c| is_separator(c) || is_terminator(c))).parse(input)?;
     let (input, stations) = many0(parse_station)(input)?;
     let (input, _) = char(';')(input)?;
+    let file_path = PathBuf::from(file_path);
     Ok((
         input,
         ProjectElement::File(SurveyFile {
-            file_path: file_path.to_string(),
+            file_path,
             project_stations: stations,
             surveys: vec![],
+            state: PhantomData::<Unloaded>,
         }),
     ))
 }
@@ -215,7 +215,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<SurveyFile> = Vec::new();
+    let mut survey_data_files: Vec<SurveyFile<Unloaded>> = Vec::new();
     let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
@@ -241,7 +241,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
                 datum,
                 survey_files: survey_data_files,
                 utm_zone: None,
-                state: Unloaded,
+                state: PhantomData::<Unloaded>,
             },
         ))
     } else {
