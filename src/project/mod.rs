@@ -1,9 +1,10 @@
 //! Compass Project
 //!
 //! This module provides the ability to read, write, and work with Compass project files
-//! Compass project files are stored in a flexible makefile format
+//! Compass project files are stored in a makefile format
 //! The compass file format is documented here:
 //! [Compass Project Documentation](https://www.fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm)
+//!
 mod parser;
 
 use std::{
@@ -49,8 +50,10 @@ pub struct Station {
     location: Option<EastNorthElevation>,
 }
 
+/// Marker type for survey and project files which have not been fully loaded yet
 #[derive(Clone, Debug, PartialEq)]
 pub struct Unloaded;
+/// Marker type for survey and project files which have been fully loaded
 #[derive(Clone, Debug, PartialEq)]
 pub struct Loaded;
 
@@ -63,10 +66,19 @@ pub struct SurveyFile<S> {
 }
 
 impl SurveyFile<Unloaded> {
+    /// Load the survey data file from disk
+    /// Consumes the `SurveyFile<Unloaded>` and returns a `SurveyFile<Loaded>` with the survey data populated
+    /// # Returns
+    /// `SurveyFile<Loaded>` representing the contents of the project file
+    /// # Errors
+    /// - [`Error::SurveyFileNotFound`] If the file does not exist
+    /// - [`Error::CouldntReadFile`] If the file cannot be read
     pub fn load(self, project_path: &Path) -> Result<SurveyFile<Loaded>, Error> {
         let full_path = project_path.join(&self.file_path);
-        let file_contents = std::fs::read_to_string(&full_path)
-            .map_err(|e| Error::CouldntReadFile(e, self.file_path.clone()))?;
+        if !full_path.exists() {
+            return Err(Error::SurveyFileNotFound(full_path));
+        }
+        let file_contents = std::fs::read_to_string(&full_path).map_err(Error::CouldntReadFile)?;
         let surveys = Survey::parse_dat_file(&file_contents)?;
         Ok(SurveyFile {
             file_path: self.file_path,
@@ -101,13 +113,20 @@ impl Project<Unloaded> {
         if !path.exists() {
             return Err(Error::ProjectFileNotFound(path));
         }
-        let file_contents =
-            std::fs::read_to_string(&path).map_err(|e| Error::CouldntReadFile(e, path.clone()))?;
+        let file_contents = std::fs::read_to_string(&path).map_err(Error::CouldntReadFile)?;
         let (_, project) = parser::parse_compass_project(path, &file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
         Ok(project)
     }
 
+    /// Read a Compass project's survey data files from disk
+    /// The data files are read from the paths specified in the project file
+    /// # Returns
+    /// [`Project<Loaded>`] representing the project file, complete with survey data
+    /// # Errors
+    /// - [`Error::SurveyFileNotFound`] If a listed survey file does not exist
+    /// - [`Error::CouldntReadFile`] If the file cannot be read
+    /// - [`Error::CouldntParseSurvey`] If the survey file cannot be parsed
     #[allow(clippy::missing_panics_doc)]
     pub fn load_survey_files(self) -> Result<Project<Loaded>, Error> {
         let mut survey_files = Vec::new();
@@ -131,7 +150,6 @@ impl Project<Unloaded> {
 
 impl Project<Loaded> {
     /// Programmatically create a new compass project
-    ///
     #[must_use]
     pub fn new(
         file_path: impl AsRef<Path>,
