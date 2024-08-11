@@ -6,8 +6,8 @@
 [![Codecov](https://img.shields.io/codecov/c/github/zheylmun/compass_data?style=for-the-badge&logo=CodeCov)](https://app.codecov.io/gh/zheylmun/compass_data)
 
 Small library for loading, working with, and generating [Compass](https://www.fountainware.com/compass/index.htm) survey project and survey files. Please note that there are no plans to load plot files.
-The goal is to enable interop between survey software,
-not replace functionality.
+The goal is to enable inter-operation and data sharing between survey software.
+Data analysis and mapping making functionality are not current goals.
 
 ## License
 
