@@ -23,13 +23,8 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    // TODO: this is probably the where I need to enforce column widths and such
-    // Some general things:
-    // 1. overall Rust review
-    // 2. look at docs / samples to understand constraints
     fn serialize(&self) -> String {
         let mut result = String::new();
-        // TODO: we might be missing FORMAT
         result.push_str(&format!("DECLINATION:   {:>4.2}  ", self.declination));
         if let Some(correction_factors) = &self.correction_factors {
             result.push_str(&format!(
