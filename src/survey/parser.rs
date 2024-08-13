@@ -12,6 +12,12 @@ use crate::{
     parser_utils::{parse_double, parse_station_name, parse_uint, recognize_line, ws},
 };
 
+use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::process::ExitCode;
+
 use super::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 fn parse_cave_name(input: &str) -> IResult<&str, String> {
@@ -177,5 +183,20 @@ mod test {
     fn parse_example_data() {
         let input = include_str!("../../test_data/Fulford.dat");
         let (_input, _surveys) = many0(parse_survey)(input).unwrap();
+
+        // let mut file = OpenOptions::new().write(true).open("/tmp/survey").unwrap();
+        let mut file = File::create("/tmp/survey").unwrap();
+
+        for (_, survey) in _surveys.iter().enumerate() {
+            // writeln!(file, "{}", survey.serialize()).expect("Unable to write file");
+            file.write_all(survey.serialize().as_bytes())
+                .expect("Unable to write file");
+            // println!("{}", survey.serialize());
+
+            // fs::write(format!("/tmp/survey_{}", pos), survey.serialize())
+            //     .expect("Unable to write file!");
+        }
+
+        assert!(false);
     }
 }
