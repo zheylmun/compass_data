@@ -30,7 +30,7 @@ impl Parameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
         // TODO: we might be missing FORMAT
-        result.push_str(&format!("DECLINATION: {:>4.2}  ", self.declination));
+        result.push_str(&format!("DECLINATION:   {:>4.2}  ", self.declination));
         if let Some(correction_factors) = &self.correction_factors {
             result.push_str(&format!(
                 "CORRECTIONS:  {:.2} {:.2} {:.2}",
@@ -76,19 +76,6 @@ pub struct Survey {
     pub shots: Vec<Shot>,
 }
 
-// TODO: maybe a little format module
-fn show_float64(f: f64) -> String {
-    format!("{:>4.2}", f)
-}
-
-fn show_string(s: String) -> String {
-    // way too many copies here
-    let mut c = s.clone();
-    c.truncate(8);
-
-    return c.trim().to_string();
-}
-
 impl Survey {
     /// Parse a survey from a string
     /// # Arguments
@@ -120,19 +107,7 @@ impl Survey {
 
     #[must_use]
     pub fn serialize(&self) -> String {
-        // Some comments:
-        // It looks like Rust's formatting doesn't let you specify what I would
-        // call significant digits, only number of digits past the decimal point.
-        // I *think* this is an issue since I think we want to 0 pad, but maybe
-        // we just need to align on a width, which Rust does let you do
-        //
-        // Anyway, constraints I know about:
-        // Numbers have 4 SD and 2 decimal points
-        // Names get truncated to 12 characters or something?
-        //
-        // All of this is in the sample project / documentation, will get precise answers later
         let mut result = String::new();
-        // let truncy = show_string(self.cave_name);
         result.push_str(&format!("{}\r\n", self.cave_name));
         result.push_str(&format!("SURVEY NAME: {}\n", self.name));
         result.push_str(&format!(
@@ -144,15 +119,13 @@ impl Survey {
         } else {
             result.push_str("\r\n");
         }
-        result.push_str("SURVEY TEAM:\r\n");
+        result.push_str("SURVEY TEAM: \r\n");
         result.push_str(&format!("{}\r\n", self.team));
-        // TODO: fuss around with this one
         result.push_str(&self.parameters.serialize());
-        result.push_str("\n         FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\n\n");
+        result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\n\n");
         for shot in &self.shots {
-            // TODO: need to align these to end of their column names
             result.push_str(&format!(
-                "{:>13}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\n",
+                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\n",
                 shot.from,
                 shot.to,
                 shot.length,
