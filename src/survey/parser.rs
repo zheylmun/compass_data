@@ -178,9 +178,9 @@ mod test {
     #[test]
     fn parse_example_data() {
         let input = include_str!("../../test_data/Fulford.dat");
-        let (_input, _surveys) = many0(parse_survey)(input).unwrap();
+        let (_input, surveys) = many0(parse_survey)(input).unwrap();
 
-        for survey in _surveys.iter() {
+        for survey in &surveys {
             // We have at least one gap in the serialization (FORMAT), so for now just do a test
             // against a simplified survey
             // Eventually we should be able to just do
