@@ -1,14 +1,18 @@
-//! Compass project
+//! Compass Project
 //!
 //! This module provides the ability to read, write, and work with Compass project files
-//! Compass project files are stored in a flexible makefile format
+//! Compass project files are stored in a makefile format
 //! The compass file format is documented here:
 //! [Compass Project Documentation](https://www.fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm)
-
+//!
 mod parser;
-use std::path::{Path, PathBuf};
 
-use crate::{EastNorthUp, Error, Survey, UtmLocation};
+use std::{
+    marker::PhantomData,
+    path::{Path, PathBuf},
+};
+
+use crate::{EastNorthElevation, Error, Survey, UtmLocation};
 
 /// Compass projects can be defined in a variety of geodetic datums.
 /// The datum is used to convert between the geodetic coordinates used in the survey data.
@@ -43,19 +47,47 @@ pub enum Datum {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Station {
     name: String,
-    location: Option<EastNorthUp>,
+    location: Option<EastNorthElevation>,
 }
+
+/// Marker type for survey and project files which have not been fully loaded yet
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unloaded;
+/// Marker type for survey and project files which have been fully loaded
+#[derive(Clone, Debug, PartialEq)]
+pub struct Loaded;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurveyFile {
-    pub file_path: String,
+pub struct SurveyFile<S> {
+    pub file_path: PathBuf,
     pub project_stations: Vec<Station>,
-    pub surveys: Vec<Survey>,
+    surveys: Vec<Survey>,
+    state: PhantomData<S>,
 }
 
-pub struct Unloaded;
-pub struct Loaded;
-pub struct Validated;
+impl SurveyFile<Unloaded> {
+    /// Load the survey data file from disk
+    /// Consumes the `SurveyFile<Unloaded>` and returns a `SurveyFile<Loaded>` with the survey data populated
+    /// # Returns
+    /// `SurveyFile<Loaded>` representing the contents of the project file
+    /// # Errors
+    /// - [`Error::SurveyFileNotFound`] If the file does not exist
+    /// - [`Error::CouldntReadFile`] If the file cannot be read
+    pub fn load(self, project_path: &Path) -> Result<SurveyFile<Loaded>, Error> {
+        let full_path = project_path.join(&self.file_path);
+        if !full_path.exists() {
+            return Err(Error::SurveyFileNotFound(full_path));
+        }
+        let file_contents = std::fs::read_to_string(&full_path).map_err(Error::CouldntReadFile)?;
+        let surveys = Survey::parse_dat_file(&file_contents)?;
+        Ok(SurveyFile {
+            file_path: self.file_path,
+            project_stations: self.project_stations,
+            surveys,
+            state: PhantomData,
+        })
+    }
+}
 
 pub struct Project<S> {
     pub file_path: PathBuf,
@@ -63,8 +95,8 @@ pub struct Project<S> {
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
     pub utm_zone: Option<u8>,
-    pub survey_files: Vec<SurveyFile>,
-    pub state: S,
+    pub survey_files: Vec<SurveyFile<S>>,
+    state: PhantomData<S>,
 }
 
 impl Project<Unloaded> {
@@ -81,16 +113,43 @@ impl Project<Unloaded> {
         if !path.exists() {
             return Err(Error::ProjectFileNotFound(path));
         }
-        let file_contents = std::fs::read_to_string(&path)?;
+        let file_contents = std::fs::read_to_string(&path).map_err(Error::CouldntReadFile)?;
         let (_, project) = parser::parse_compass_project(path, &file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
         Ok(project)
+    }
+
+    /// Read a Compass project's survey data files from disk
+    /// The data files are read from the paths specified in the project file
+    /// # Returns
+    /// [`Project<Loaded>`] representing the project file, complete with survey data
+    /// # Errors
+    /// - [`Error::SurveyFileNotFound`] If a listed survey file does not exist
+    /// - [`Error::CouldntReadFile`] If the file cannot be read
+    /// - [`Error::CouldntParseSurvey`] If the survey file cannot be parsed
+    #[allow(clippy::missing_panics_doc)]
+    pub fn load_survey_files(self) -> Result<Project<Loaded>, Error> {
+        let mut survey_files = Vec::new();
+        // This unwrap is safe because we know the file path existed to read this project
+        // therefore the parent directory must exist
+        let project_dir = self.file_path.parent().unwrap();
+        for survey_file in self.survey_files {
+            let survey_file = survey_file.load(project_dir)?;
+            survey_files.push(survey_file);
+        }
+        Ok(Project {
+            file_path: self.file_path,
+            base_location: self.base_location,
+            datum: self.datum,
+            utm_zone: self.utm_zone,
+            survey_files,
+            state: PhantomData::<Loaded>,
+        })
     }
 }
 
 impl Project<Loaded> {
     /// Programmatically create a new compass project
-    ///
     #[must_use]
     pub fn new(
         file_path: impl AsRef<Path>,
@@ -105,33 +164,32 @@ impl Project<Loaded> {
             datum,
             utm_zone,
             survey_files: Vec::new(),
-            state: Loaded,
+            state: PhantomData::<Loaded>,
         }
-    }
-
-    /// Validate the project
-    /// Ensure tha all from-stations in the survey files are present in the project and available for reference
-    /// # Errors
-    /// - [`Error::StationNotFound`] If a station referenced in a survey file is not available
-    pub fn validate(self) -> Result<Project<Validated>, Error> {
-        //Validate stations in here
-        Ok(Project {
-            file_path: self.file_path,
-            base_location: self.base_location,
-            datum: self.datum,
-            utm_zone: self.utm_zone,
-            survey_files: self.survey_files,
-            state: Validated,
-        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Error;
+    use crate::{common_types::EastNorthElevation, Error};
 
     use super::*;
     use std::path::PathBuf;
+    #[test]
+    fn programatic_creation() {
+        let east_north_elevation = EastNorthElevation::from_meters(336_083.0, 3_301_724.0, 6.0);
+        let new_project = Project::new(
+            "Ginnie.mak",
+            UtmLocation {
+                east_north_elevation,
+                zone: 17,
+                convergence_angle: 1.257_286,
+            },
+            Datum::Wgs1984,
+            None,
+        );
+        assert!(new_project.survey_files.is_empty());
+    }
     #[test]
     fn bad_path() {
         let path = PathBuf::from("does_not_exist.mak");
@@ -140,11 +198,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_compass_sample() {
+    fn parse_and_load_compass_sample() {
         let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         sample_path.push("test_data/Fulfords.mak");
 
-        let loaded_project = Project::read(&sample_path).unwrap();
-        assert_eq!(loaded_project.survey_files.len(), 2);
+        let read_project = Project::read(&sample_path).unwrap();
+        assert_eq!(read_project.survey_files.len(), 2);
+        let _loaded_project = read_project.load_survey_files().unwrap();
     }
 }

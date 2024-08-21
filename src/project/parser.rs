@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_till, take_till1, take_until1},
@@ -8,13 +6,13 @@ use nom::{
     multi::many0,
     IResult, Parser,
 };
+use std::{marker::PhantomData, path::PathBuf};
 
 use crate::{
     parser_utils::{is_valid_station_name_char, parse_double, ws},
-    EastNorthUp,
+    project::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation},
+    EastNorthElevation,
 };
-
-use super::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation};
 
 #[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
@@ -23,7 +21,7 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    File(SurveyFile),
+    File(SurveyFile<Unloaded>),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -48,7 +46,7 @@ fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char(',')(input)?;
     let (input, convergence_angle) = parse_double(input)?;
     let (input, _) = char(';')(input)?;
-    let east_north_elevation = EastNorthUp::from_meters(east, north, elevation);
+    let east_north_elevation = EastNorthElevation::from_meters(east, north, elevation);
     Ok((
         input,
         ProjectElement::BaseLocation(UtmLocation {
@@ -115,7 +113,7 @@ fn is_terminator(c: char) -> bool {
     c == ';'
 }
 
-fn parse_station_fix(input: &str) -> IResult<&str, EastNorthUp> {
+fn parse_station_fix(input: &str) -> IResult<&str, EastNorthElevation> {
     let (input, _) = char('[')(input)?;
     // Eat the whitespace before and after the unit tag
     let (input, unit_char) = ws(alt((char('m'), char('M'), char('f'), char('F')))).parse(input)?;
@@ -123,8 +121,8 @@ fn parse_station_fix(input: &str) -> IResult<&str, EastNorthUp> {
     let (input, (east, north, elevation)) = parse_triple_double(input)?;
     let (input, _) = char(']')(input)?;
     let ene = match unit_char.to_ascii_lowercase() {
-        'm' => EastNorthUp::from_meters(east, north, elevation),
-        'f' => EastNorthUp::from_feet(east, north, elevation),
+        'm' => EastNorthElevation::from_meters(east, north, elevation),
+        'f' => EastNorthElevation::from_feet(east, north, elevation),
         _ => panic!("invalid unit tag"),
     };
     Ok((input, ene))
@@ -161,12 +159,14 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
         ws(take_till1(|c| is_separator(c) || is_terminator(c))).parse(input)?;
     let (input, stations) = many0(parse_station)(input)?;
     let (input, _) = char(';')(input)?;
+    let file_path = PathBuf::from(file_path);
     Ok((
         input,
         ProjectElement::File(SurveyFile {
-            file_path: file_path.to_string(),
+            file_path,
             project_stations: stations,
             surveys: vec![],
+            state: PhantomData::<Unloaded>,
         }),
     ))
 }
@@ -215,7 +215,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<SurveyFile> = Vec::new();
+    let mut survey_data_files: Vec<SurveyFile<Unloaded>> = Vec::new();
     let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
@@ -241,7 +241,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
                 datum,
                 survey_files: survey_data_files,
                 utm_zone: None,
-                state: Unloaded,
+                state: PhantomData::<Unloaded>,
             },
         ))
     } else {
@@ -262,8 +262,8 @@ mod tests {
         let (input, project) = parse_compass_project(file_path, input).unwrap();
         assert!(input.is_empty());
         let ene = project.base_location.east_north_elevation;
-        assert_float_eq!(ene.east, 398_315.500, rmax <= 0.001);
-        assert_float_eq!(ene.north, 4_483_735.300, rmax <= 0.001);
+        assert_float_eq!(ene.easting, 398_315.500, rmax <= 0.001);
+        assert_float_eq!(ene.northing, 4_483_735.300, rmax <= 0.001);
         assert_float_eq!(ene.up, 3_048.000, rmax <= 0.001);
         assert!(project.base_location.zone == 13);
         assert_float_eq!(
@@ -281,8 +281,8 @@ mod tests {
         let file_path = PathBuf::from("../../test_data/Fulfords.mak");
         let (_, project) = parse_compass_project(file_path, sample_project).unwrap();
         let enu = project.base_location.east_north_elevation;
-        assert_float_eq!(enu.east, 357_715.717_f64, rmax <= 0.001);
-        assert_float_eq!(enu.north, 4_372_837.574_f64, rmax <= 0.001);
+        assert_float_eq!(enu.easting, 357_715.717_f64, rmax <= 0.001);
+        assert_float_eq!(enu.northing, 4_372_837.574_f64, rmax <= 0.001);
         assert_float_eq!(enu.up, 3_048_f64, rmax <= 0.001);
         assert!(project.base_location.zone == 13);
         assert_float_eq!(

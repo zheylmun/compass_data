@@ -10,8 +10,8 @@ pub enum Error {
     CouldntReadFile(#[from] std::io::Error),
     #[error("Error parsing project file: {0}")]
     CouldntParseProject(String),
-    #[error("Error parsing survey data file: {0}")]
-    CouldntParseSurveyData(String),
+    #[error("Survey file not found: {0}")]
+    SurveyFileNotFound(PathBuf),
     #[error("Error parsing Survey: {0}")]
     CouldntParseSurvey(String),
     #[error("Station not found: {0}")]
