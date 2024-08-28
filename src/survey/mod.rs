@@ -25,10 +25,10 @@ pub struct Parameters {
 impl Parameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
-        result.push_str(&format!("DECLINATION: {:.2}", self.declination));
+        result.push_str(&format!("DECLINATION:   {:>4.2}  ", self.declination));
         if let Some(correction_factors) = &self.correction_factors {
             result.push_str(&format!(
-                "CORRECTIONS: {:.1} {:.1} {:.1}",
+                "CORRECTIONS:  {:.2} {:.2} {:.2}",
                 correction_factors.azimuth,
                 correction_factors.inclination,
                 correction_factors.length
@@ -110,17 +110,17 @@ impl Survey {
             self.date.month, self.date.day, self.date.year
         ));
         if let Some(comment) = &self.comment {
-            result.push_str(&format!(" COMMENT: {comment}\r\n"));
+            result.push_str(&format!("  COMMENT:{comment}\r\n"));
         } else {
             result.push_str("\r\n");
         }
-        result.push_str("SURVEY TEAM:\r\n");
+        result.push_str("SURVEY TEAM: \r\n");
         result.push_str(&format!("{}\r\n", self.team));
         result.push_str(&self.parameters.serialize());
-        result.push_str("FROM\n");
+        result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\n\n");
         for shot in &self.shots {
             result.push_str(&format!(
-                "{} {} {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} {:.2}\n",
+                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\n",
                 shot.from,
                 shot.to,
                 shot.length,
