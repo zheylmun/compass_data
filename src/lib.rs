@@ -22,7 +22,9 @@ mod tests {
         let mut sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         sample_path.push("test_data/Fulfords.mak");
 
-        let loaded_project = Project::read(&sample_path).unwrap();
-        assert_eq!(loaded_project.survey_files.len(), 2);
+        let unloaded_project = Project::read(&sample_path).unwrap();
+        assert_eq!(unloaded_project.survey_files.len(), 2);
+        // Make sure we can load all the project files too
+        let _loaded_project = unloaded_project.load_survey_files().unwrap();
     }
 }
