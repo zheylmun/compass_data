@@ -3,6 +3,7 @@ const FEET_TO_METERS: f64 = 0.3048;
 /// East North Elevation coordinates
 /// Always stored in meters
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct EastNorthElevation {
     pub easting: f64,
     pub northing: f64,
@@ -30,6 +31,7 @@ impl EastNorthElevation {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct UtmLocation {
     pub east_north_elevation: EastNorthElevation,
     pub zone: u8,
@@ -37,6 +39,7 @@ pub struct UtmLocation {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Date {
     pub month: u8,
     pub day: u8,

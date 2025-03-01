@@ -19,6 +19,7 @@ use crate::{EastNorthElevation, Error, Survey, UtmLocation};
 /// The datum is used to convert between the geodetic coordinates used in the survey data.
 /// This enum provides a list of the datums supported by Compass.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Datum {
     Adindan,
     Arc1950,
@@ -46,6 +47,7 @@ pub enum Datum {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Station {
     name: String,
     location: Option<EastNorthElevation>,
@@ -59,6 +61,7 @@ pub struct Unloaded;
 pub struct Loaded;
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct SurveyFile<S> {
     pub file_path: PathBuf,
     pub project_stations: Vec<Station>,
@@ -90,6 +93,8 @@ impl SurveyFile<Unloaded> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Project<S> {
     pub file_path: PathBuf,
     pub base_location: UtmLocation,

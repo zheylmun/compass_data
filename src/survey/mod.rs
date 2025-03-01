@@ -3,6 +3,7 @@ use crate::{common_types::Date, Error};
 mod parser;
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct CorrectionFactors {
     pub azimuth: f64,
     pub inclination: f64,
@@ -10,12 +11,14 @@ pub struct CorrectionFactors {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct BackSightCorrectionFactors {
     pub azimuth: f64,
     pub inclination: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Parameters {
     pub declination: f64,
     pub correction_factors: Option<CorrectionFactors>,
@@ -46,6 +49,7 @@ impl Parameters {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Shot {
     pub from: String,
     pub to: String,
@@ -61,6 +65,7 @@ pub struct Shot {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Survey {
     pub cave_name: String,
     pub name: String,
