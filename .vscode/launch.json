@@ -1,0 +1,47 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'compass_data'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=compass_data"
+                ],
+                "filter": {
+                    "name": "compass_data",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'project_to_json'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=project_to_json",
+                    "--package=compass_data"
+                ],
+                "filter": {
+                    "name": "project_to_json",
+                    "kind": "example"
+                }
+            },
+            "args": [
+                "test_data/Fulfords.mak"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+    ]
+}
