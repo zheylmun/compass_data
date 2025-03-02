@@ -15,6 +15,7 @@ use std::{
 use crate::{EastNorthElevation, Error, Survey, UtmLocation};
 
 /// Compass projects can be defined in a variety of geodetic datums.
+///
 /// The datum is used to convert between the geodetic coordinates used in the survey data.
 /// This enum provides a list of the datums supported by Compass.
 #[derive(Clone, Copy, Debug, PartialEq)]
