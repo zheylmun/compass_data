@@ -55,9 +55,11 @@ pub struct Station {
 
 /// Marker type for survey and project files which have not been fully loaded yet
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Unloaded;
 /// Marker type for survey and project files which have been fully loaded
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Loaded;
 
 #[derive(Clone, Debug, PartialEq)]
