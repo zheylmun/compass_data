@@ -42,8 +42,8 @@ pub enum Datum {
     SouthAmerican1956,
     SouthAmerican1969,
     Tokyo,
-    Wgs1972,
-    Wgs1984,
+    WGS1972,
+    WGS1984,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -193,7 +193,7 @@ mod tests {
                 zone: 17,
                 convergence_angle: 1.257_286,
             },
-            Datum::Wgs1984,
+            Datum::WGS1984,
             None,
         );
         assert!(new_project.survey_files.is_empty());

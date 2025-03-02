@@ -93,8 +93,8 @@ fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
             value(Datum::SouthAmerican1956, tag("South American 1956")),
             value(Datum::SouthAmerican1969, tag("South American 1969")),
             value(Datum::Tokyo, tag("Tokyo")),
-            value(Datum::Wgs1972, tag("Wgs 1972")),
-            value(Datum::Wgs1984, tag("Wgs 1984")),
+            value(Datum::WGS1972, tag("WGS 1972")),
+            value(Datum::WGS1984, tag("WGS 1984")),
         )),
     ))(input)?;
     let (input, _) = char(';')(input)?;
