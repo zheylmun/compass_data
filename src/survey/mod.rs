@@ -1,4 +1,6 @@
-use crate::{common_types::Date, Error};
+use chrono::{Datelike, NaiveDate};
+
+use crate::Error;
 
 mod parser;
 
@@ -69,7 +71,7 @@ pub struct Shot {
 pub struct Survey {
     pub cave_name: String,
     pub name: String,
-    pub date: Date,
+    pub date: NaiveDate,
     pub comment: Option<String>,
     pub team: String,
     pub parameters: Parameters,
@@ -112,7 +114,9 @@ impl Survey {
         result.push_str(&format!("SURVEY NAME: {}\n", self.name));
         result.push_str(&format!(
             "SURVEY DATE: {} {} {}",
-            self.date.month, self.date.day, self.date.year
+            self.date.month(),
+            self.date.day0() + 1,
+            self.date.year_ce().1,
         ));
         if let Some(comment) = &self.comment {
             result.push_str(&format!("  COMMENT:{comment}\r\n"));

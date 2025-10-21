@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use nom::{
     bytes::complete::{tag, take_till1},
     character::complete::{alpha1, multispace0, multispace1},
@@ -147,6 +148,8 @@ pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
     let (input, cave_name) = parse_cave_name(input)?;
     let (input, name) = parse_survey_name(input)?;
     let (input, (date, comment)) = parse_survey_date_line(input)?;
+    let date =
+        NaiveDate::from_ymd_opt(date.year as i32, date.month as u32, date.day as u32).unwrap();
     let (input, team) = parse_survey_team(input)?;
     let (input, parameters) = parse_survey_parameters(input)?;
     let (input, _) = gobble_labels(input)?;
