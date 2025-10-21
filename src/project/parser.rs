@@ -7,6 +7,7 @@ use nom::{
     IResult, Parser,
 };
 use std::{marker::PhantomData, path::PathBuf};
+use uuid::Uuid;
 
 use crate::{
     parser_utils::{is_valid_station_name_char, parse_double, ws},
@@ -16,6 +17,7 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq)]
 enum ProjectElement {
+    ProjectId(Uuid),
     BaseLocation(UtmLocation),
     CarriageReturn,
     Comment(String),
@@ -36,6 +38,16 @@ fn parse_triple_double(input: &str) -> IResult<&str, (f64, f64, f64)> {
     let (input, _) = char(',')(input)?;
     let (input, val_2) = parse_double(input)?;
     Ok((input, (val_0, val_1, val_2)))
+}
+
+fn parse_project_id(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = char('/')(input)?;
+    let (input, uuid_str) = take_till1(|c| c == ';')(input)?;
+    let (input, _) = char(';')(input)?;
+    let uuid = Uuid::parse_str(uuid_str).map_err(|_e| {
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Fail))
+    })?;
+    Ok((input, ProjectElement::ProjectId(uuid)))
 }
 
 fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
@@ -61,7 +73,6 @@ fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = multispace0(input)?;
     let (input, _) = tag("/")(input)?;
     let (input, comment) = take_till(is_end_of_comment)(input)?;
-
     Ok((input, ProjectElement::Comment(comment.to_string())))
 }
 
@@ -198,6 +209,7 @@ fn parse_whitespace(input: &str) -> IResult<&str, ProjectElement> {
 
 fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
     alt((
+        parse_project_id,
         parse_base_location,
         value(ProjectElement::CarriageReturn, char('\r')),
         parse_comment,
@@ -212,6 +224,7 @@ fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
 }
 
 pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, Project<Unloaded>> {
+    let mut project_id: Option<uuid::Uuid> = None;
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
@@ -221,6 +234,9 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
     while let Ok((munched, element)) = parse_project_element(input) {
         input = munched;
         match element {
+            ProjectElement::ProjectId(parsed_project_id) => {
+                project_id = Some(parsed_project_id);
+            }
             ProjectElement::BaseLocation(parsed_base_location) => {
                 base_location = Some(parsed_base_location);
             }
@@ -236,6 +252,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
         Ok((
             input,
             Project {
+                id: project_id,
                 file_path,
                 base_location,
                 datum,
@@ -260,6 +277,7 @@ mod tests {
         let input = include_str!("../../test_data/project_file_examples");
         let file_path = PathBuf::from(FILE_PATH);
         let (input, project) = parse_compass_project(file_path, input).unwrap();
+        assert!(project.id.is_some());
         assert!(input.is_empty());
         let ene = project.base_location.east_north_elevation;
         assert_float_eq!(ene.easting, 398_315.500, rmax <= 0.001);

@@ -7,12 +7,12 @@
 //!
 mod parser;
 
+use crate::{EastNorthElevation, Error, Survey, UtmLocation};
 use std::{
     marker::PhantomData,
     path::{Path, PathBuf},
 };
-
-use crate::{EastNorthElevation, Error, Survey, UtmLocation};
+use uuid::Uuid;
 
 /// Compass projects can be defined in a variety of geodetic datums.
 ///
@@ -98,6 +98,7 @@ impl SurveyFile<Unloaded> {
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Project<S> {
+    pub id: Option<Uuid>,
     pub file_path: PathBuf,
     pub base_location: UtmLocation,
     pub datum: Datum,
@@ -146,6 +147,7 @@ impl Project<Unloaded> {
             survey_files.push(survey_file);
         }
         Ok(Project {
+            id: self.id,
             file_path: self.file_path,
             base_location: self.base_location,
             datum: self.datum,
@@ -160,6 +162,7 @@ impl Project<Loaded> {
     /// Programmatically create a new compass project
     #[must_use]
     pub fn new(
+        project_id: Option<Uuid>,
         file_path: impl AsRef<Path>,
         base_location: UtmLocation,
         datum: Datum,
@@ -167,6 +170,7 @@ impl Project<Loaded> {
     ) -> Self {
         let file_path = file_path.as_ref().to_path_buf();
         Self {
+            id: project_id,
             file_path,
             base_location,
             datum,
@@ -187,6 +191,7 @@ mod tests {
     fn programatic_creation() {
         let east_north_elevation = EastNorthElevation::from_meters(336_083.0, 3_301_724.0, 6.0);
         let new_project = Project::new(
+            None,
             "Ginnie.mak",
             UtmLocation {
                 east_north_elevation,
@@ -198,6 +203,7 @@ mod tests {
         );
         assert!(new_project.survey_files.is_empty());
     }
+
     #[test]
     fn bad_path() {
         let path = PathBuf::from("does_not_exist.mak");
