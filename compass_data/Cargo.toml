@@ -1,0 +1,27 @@
+[package]
+name = "compass_data"
+version = "0.0.1"
+edition = "2021"
+authors = ["Zach Heylmun <zheylmun@gmail.com>"]
+description = "A library for working with Compass cave survey data"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zheylmun/compass_data"
+
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+nom = "7"
+utm = "0.1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"], optional = true}
+uuid = { version = "1", features = ["serde","v4"] }
+
+[dev-dependencies]
+compass_data = { path = ".", features = ["serde"]}
+float_eq = "1"
+pretty_assertions = "1"
+serde_json = "1"
+
+[features]
+default = []
+serde = ["dep:serde"]
