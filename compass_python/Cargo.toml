@@ -11,11 +11,14 @@ generate-stubs = []
 maturin = "1.9.6"
 
 [dependencies]
-serde = { version = "1.0.219" }
-serde_json = "1.0.142"
-pyo3 = { version = "0.27.1", features = ["extension-module"] }
+chrono = { version = "0.4"}
+compass_data = { path = "../compass_data", version = "0.0.1" }
+pyo3 = { version = "0.27.1", features = ["extension-module","experimental-inspect"] }
 # =================== Generate *.pyi stubs files =================== #
 pyo3-stub-gen = "0.16.1"
+# ===================  =================== #
+serde = { version = "1.0.219" }
+serde_json = "1.0.142"
 
 # Windows-only addition
 [target.'cfg(windows)'.dependencies.pyo3]
