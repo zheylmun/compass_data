@@ -6,13 +6,6 @@ use pyo3_stub_gen::{
 use serde::{Deserialize, Serialize};
 
 #[pyclass]
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub enum Units {
-    Feet,
-    Meters,
-}
-
-#[pyclass]
 #[gen_stub_pyclass]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Shot {
@@ -34,7 +27,7 @@ pub struct Shot {
 #[derive(Clone, Debug)]
 pub struct SurveyData {
     pub survey_date: String,
-    pub units: Units,
+    pub units: String,
     pub cave_name: String,
     pub survey_name: String,
     pub survey_team: String,
@@ -79,7 +72,6 @@ fn convert_xls_json_to_dat<'py>(
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _rust_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Units>()?;
     m.add_class::<Shot>()?;
     m.add_class::<SurveyData>()?;
     m.add_function(wrap_pyfunction!(convert_xls_json_to_dat, m)?)?;
