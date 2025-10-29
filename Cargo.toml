@@ -1,5 +1,5 @@
 [workspace]
-
+workspace.resolver = "2"
 members = [
     "compass_data",
     "compass_python"

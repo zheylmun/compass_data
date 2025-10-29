@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[pyclass]
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-enum Units {
+pub enum Units {
     Feet,
     Meters,
 }
@@ -15,33 +15,31 @@ enum Units {
 #[pyclass]
 #[gen_stub_pyclass]
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Shot {
-    from: String,
-    to: String,
-    length: f32,
-    azimuth: f32,
-    depth: f32,
-    left: Option<f32>,
-    right: Option<f32>,
-    up: Option<f32>,
-    down: Option<f32>,
-    flags: String,
-    comment: String,
+pub struct Shot {
+    pub from: String,
+    pub to: String,
+    pub length: f32,
+    pub azimuth: f32,
+    pub depth: f32,
+    pub left: Option<f32>,
+    pub right: Option<f32>,
+    pub up: Option<f32>,
+    pub down: Option<f32>,
+    pub flags: String,
+    pub comment: String,
 }
 
 #[pyclass]
 #[gen_stub_pyclass]
 #[derive(Clone, Debug)]
-struct SurveyData {
-    survey_date: String,
-    units: Units,
-    cave_name: String,
-    survey_name: String,
-    survey_team: String,
-    comment: String,
-    latitude: f32,
-    longitude: f32,
-    shots: Vec<Shot>,
+pub struct SurveyData {
+    pub survey_date: String,
+    pub units: Units,
+    pub cave_name: String,
+    pub survey_name: String,
+    pub survey_team: String,
+    pub comment: String,
+    pub shots: Vec<Shot>,
 }
 
 /// A Python-exposed function that returns fixed DAT file bytes.
