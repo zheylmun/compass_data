@@ -2,8 +2,5 @@
 # ruff: noqa: E501, F401
 
 
-def convert_xls_json_to_dat(data: dict) -> bytes:
-    r"""
-    A Python-exposed function that returns fixed DAT file bytes.
-    """
+def convert_xls_json_to_dat(survey: dict) -> bytes: ...
 

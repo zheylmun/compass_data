@@ -6,13 +6,58 @@ use pyo3::types::PyModule;
 use pyo3_stub_gen::define_stub_info_gatherer;
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
-/// A Python-exposed function that returns fixed DAT file bytes.
+use pythonize::depythonize;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Shot {
+    from_: String,
+    to: String,
+    length: f64,
+    azimuth: f64,
+    depth: f64,
+    left: Option<f64>,
+    right: Option<f64>,
+    up: Option<f64>,
+    down: Option<f64>,
+    flags: Option<String>,
+    comment: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SurveyData {
+    shots: Vec<Shot>,
+    survey_date: String,
+    unit: String,
+    cave_name: String,
+    survey_name: String,
+    survey_team: Vec<String>,
+    comment: Option<String>,
+    latitude: f64,
+    longitude: f64,
+    declination: f64,
+}
+
 #[gen_stub_pyfunction(module = "ospl_rcompass._rust_lib")]
 #[pyfunction]
 fn convert_xls_json_to_dat<'py>(
     py: Python<'py>,
-    data: &Bound<'py, PyDict>,
+    survey: &Bound<'py, PyDict>,
 ) -> PyResult<Bound<'py, PyBytes>> {
+    // Convert date object to string
+    if let Some(date_obj) = survey.get_item("survey_date")? {
+        let date_str = date_obj.str()?.to_string();
+        survey.set_item("survey_date", date_str)?;
+    }
+
+    // Convert PyDict to Rust struct
+    let survey_data: SurveyData = depythonize(survey)?;
+
+    println!("Cave: {}", survey_data.cave_name);
+    println!("Number of shots: {}", survey_data.shots.len());
+    println!("============================================");
+
+    // Fake output - Replace with real implementation
     let mut bytes = br#"Fulford Cave
 SURVEY NAME: SS
 SURVEY DATE: 8 28 1988  COMMENT:Surface to shelter
@@ -39,7 +84,6 @@ DECLINATION:   11.18  FORMAT: DDDDUDLRLADN  CORRECTIONS:  0.00 0.00 0.00
     Ok(PyBytes::new(py, &bytes))
 }
 
-/// A Python module implemented in Rust.
 #[pymodule]
 fn _rust_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(convert_xls_json_to_dat, m)?)?;
