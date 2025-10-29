@@ -2,4 +2,5 @@
 
 members = [
     "compass_data",
+    "compass_python"
 ]
