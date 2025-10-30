@@ -1,2 +1,7 @@
 target/
 .DS_Store
+
+
+
+# Stub Gen
+!compass_python/src/bin/stub_gen.rs
