@@ -1,9 +1,9 @@
 Fulford Cave
 SURVEY NAME: CL
 SURVEY DATE: 6 10 1989  COMMENT:Moon Milk Side Passage
-SURVEY TEAM: 
+SURVEY TEAM:
 Steve Reames,Paul Burger,Stan Allison,Dave Fazzina,
-DECLINATION:   11.18  CORRECTIONS:  0.00 0.00 0.00
+DECLINATION:   11.18  FORMAT: DDDDUDLRLADN  CORRECTIONS:  0.00 0.00 0.00
 
         FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS
 
@@ -12,3 +12,4 @@ DECLINATION:   11.18  CORRECTIONS:  0.00 0.00 0.00
          CL2          CL3    15.45   138.50     0.00 -9999.00 -9999.00 -9999.00 -9999.00
          CL3          CL4    14.75   163.50    21.50 -9999.00 -9999.00 -9999.00 -9999.00
          CL4          C15    12.50   217.50     8.00 -9999.00 -9999.00 -9999.00 -9999.00
+

@@ -189,11 +189,11 @@ mod test {
             // Eventually we should be able to just do
             // `assert_str_eq!(survey.serialize(), input)`
             if survey.name == "CL" {
-                let perfection = include_str!("../../test_data/fulford_cave_survey.dat").trim();
-                assert_str_eq!(
-                    survey.serialize().trim().replace("\r\n", "\n"),
-                    perfection.trim()
-                );
+                let source = include_str!("../../test_data/fulford_cave_survey.dat").trim();
+                let round_trip = survey.serialize();
+                println!("{source}");
+                println!("{round_trip}");
+                assert_str_eq!(round_trip, source);
 
                 break;
             }

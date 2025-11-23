@@ -111,7 +111,7 @@ impl Survey {
     pub fn serialize(&self) -> String {
         let mut result = String::new();
         result.push_str(&format!("{}\r\n", self.cave_name));
-        result.push_str(&format!("SURVEY NAME: {}\n", self.name));
+        result.push_str(&format!("SURVEY NAME: {}\r\n", self.name));
         result.push_str(&format!(
             "SURVEY DATE: {} {} {}",
             self.date.month(),
@@ -126,10 +126,10 @@ impl Survey {
         result.push_str("SURVEY TEAM: \r\n");
         result.push_str(&format!("{}\r\n", self.team));
         result.push_str(&self.parameters.serialize());
-        result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\n\n");
+        result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\r\n\r\n");
         for shot in &self.shots {
             result.push_str(&format!(
-                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\n",
+                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\r\n",
                 shot.from,
                 shot.to,
                 shot.length,
@@ -141,7 +141,7 @@ impl Survey {
                 shot.right
             ));
         }
-        result.push_str("\x0c\n");
+        result.push_str("\x0c\r\n");
         result
     }
 }
