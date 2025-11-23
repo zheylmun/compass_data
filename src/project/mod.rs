@@ -64,14 +64,14 @@ pub struct Loaded;
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct SurveyFile<S> {
+pub struct DatFile<S> {
     pub file_path: PathBuf,
     pub project_stations: Vec<Station>,
     surveys: Vec<Survey>,
     state: PhantomData<S>,
 }
 
-impl SurveyFile<Unloaded> {
+impl DatFile<Unloaded> {
     /// Load the survey data file from disk
     /// Consumes the `SurveyFile<Unloaded>` and returns a `SurveyFile<Loaded>` with the survey data populated
     /// # Returns
@@ -79,14 +79,14 @@ impl SurveyFile<Unloaded> {
     /// # Errors
     /// - [`Error::SurveyFileNotFound`] If the file does not exist
     /// - [`Error::CouldntReadFile`] If the file cannot be read
-    pub fn load(self, project_path: &Path) -> Result<SurveyFile<Loaded>, Error> {
+    pub fn load(self, project_path: &Path) -> Result<DatFile<Loaded>, Error> {
         let full_path = project_path.join(&self.file_path);
         if !full_path.exists() {
             return Err(Error::SurveyFileNotFound(full_path));
         }
         let file_contents = std::fs::read_to_string(&full_path).map_err(Error::CouldntReadFile)?;
         let surveys = Survey::parse_dat_file(&file_contents)?;
-        Ok(SurveyFile {
+        Ok(DatFile {
             file_path: self.file_path,
             project_stations: self.project_stations,
             surveys,
@@ -104,7 +104,7 @@ pub struct Project<S> {
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
     pub utm_zone: Option<u8>,
-    pub survey_files: Vec<SurveyFile<S>>,
+    pub survey_files: Vec<DatFile<S>>,
     state: PhantomData<S>,
 }
 

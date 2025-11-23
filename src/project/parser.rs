@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     parser_utils::{is_valid_station_name_char, parse_double, ws},
-    project::{Datum, Project, Station, SurveyFile, Unloaded, UtmLocation},
+    project::{DatFile, Datum, Project, Station, Unloaded, UtmLocation},
     EastNorthElevation,
 };
 
@@ -23,7 +23,7 @@ enum ProjectElement {
     Comment(String),
     Datum(Datum),
     LineFeed,
-    File(SurveyFile<Unloaded>),
+    File(DatFile<Unloaded>),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -173,7 +173,7 @@ fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
     let file_path = PathBuf::from(file_path);
     Ok((
         input,
-        ProjectElement::File(SurveyFile {
+        ProjectElement::File(DatFile {
             file_path,
             project_stations: stations,
             surveys: vec![],
@@ -228,7 +228,7 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
     let mut input = input;
     let mut base_location: Option<UtmLocation> = None;
     let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<SurveyFile<Unloaded>> = Vec::new();
+    let mut survey_data_files: Vec<DatFile<Unloaded>> = Vec::new();
     let mut folders = Vec::new();
 
     while let Ok((munched, element)) = parse_project_element(input) {
