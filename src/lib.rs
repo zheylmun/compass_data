@@ -6,7 +6,7 @@ mod project;
 mod survey;
 pub use common_types::{EastNorthElevation, UtmLocation};
 pub use error::Error;
-pub use project::{DatFile, Datum, Project};
+pub use project::{DatFile, Datum, Loaded, Project, Unloaded};
 pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 [package]
 name = "compass_data"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 authors = ["Zach Heylmun <zheylmun@gmail.com>"]
 description = "A library for working with Compass cave survey data"
