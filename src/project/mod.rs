@@ -95,10 +95,14 @@ impl DatFile<Unloaded> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Project<S> {
     pub id: Option<Uuid>,
+    /// The file path to the project file on disk
+    /// This is used to resolve relative paths to survey data files
+    /// # Note
+    /// igoned for equality checks
     pub file_path: PathBuf,
     pub base_location: UtmLocation,
     pub datum: Datum,
@@ -106,6 +110,26 @@ pub struct Project<S> {
     pub utm_zone: Option<u8>,
     pub survey_files: Vec<DatFile<S>>,
     state: PhantomData<S>,
+}
+
+impl PartialEq for Project<Unloaded> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.base_location == other.base_location
+            && self.datum == other.datum
+            && self.utm_zone == other.utm_zone
+            && self.survey_files == other.survey_files
+    }
+}
+
+impl PartialEq for Project<Loaded> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.base_location == other.base_location
+            && self.datum == other.datum
+            && self.utm_zone == other.utm_zone
+            && self.survey_files == other.survey_files
+    }
 }
 
 impl Project<Unloaded> {
@@ -183,7 +207,7 @@ impl Project<Loaded> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{common_types::EastNorthElevation, Error};
+    use crate::{Error, common_types::EastNorthElevation};
 
     use super::*;
     use std::path::PathBuf;
