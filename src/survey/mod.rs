@@ -4,6 +4,80 @@ use crate::Error;
 
 mod parser;
 
+/// Bearing Units are used to represent heading measurements
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum BearingUnits {
+    Degrees,
+    Quads,
+    Grads,
+}
+
+/// Length Units are used to represent distance measurements
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum LengthUnits {
+    DecimalFeet,
+    FeetAndInches,
+    Meters,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum InclinationUnits {
+    Degrees,
+    PercentGrade,
+    DegreesAndMinutes,
+    Grads,
+    DepthGauge,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum PassageDimension {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum ShotItem {
+    Length,
+    Azimuth,
+    Inclination,
+    BackAzimuth,
+    BackInclination,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum RedundantBackSight {
+    RedundantBacksight,
+    NoRedundantBacksight,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum LRUDAssociation {
+    FromStation,
+    ToStation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct FileFormat {
+    bearing_units: BearingUnits,
+    length_units: LengthUnits,
+    passage_units: LengthUnits,
+    inclination_units: InclinationUnits,
+    passage_dimension_order: [Parameters; 4],
+    shot_item_order: [ShotItem; 5],
+    backsight: RedundantBackSight,
+    lrud_assosciation: LRUDAssociation,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct CorrectionFactors {
