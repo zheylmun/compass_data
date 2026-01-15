@@ -36,15 +36,26 @@ mod tests {
     #[test]
     fn parse_environment_samples() {
         if let Ok(sample_dir) = std::env::var("COMPASS_DATA_SAMPLES") {
+            println!("Sample directory: {}", sample_dir);
             let sample_dir = std::fs::read_dir(sample_dir).unwrap();
             for file_entry in sample_dir {
-                let file_path = file_entry.unwrap().path();
+                let file_entry = file_entry.unwrap();
+                let file_path = file_entry.path();
+                if file_path.ends_with("DS_Store") {
+                    continue;
+                }
+
+                println!("File path: {file_path:?}");
+
                 if file_path.exists()
                     && file_path.is_file()
-                    && file_path.extension().unwrap().to_str() == Some("mak")
+                    && let Some(extension) = file_path.extension()
                 {
-                    test_at_path(&file_path);
+                    if extension.to_ascii_lowercase().to_str().unwrap() == "mak" {
+                        test_at_path(&file_path);
+                    }
                 }
+                {}
             }
         }
     }

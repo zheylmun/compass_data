@@ -1,11 +1,10 @@
 use chrono::NaiveDate;
 use nom::{
+    IResult, Parser,
     bytes::complete::{tag, take_till1},
     character::complete::{alpha1, multispace0, multispace1},
     error::Error,
     multi::many0,
-    sequence::Tuple,
-    IResult, Parser,
 };
 
 use crate::{
@@ -153,7 +152,7 @@ pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
     let (input, team) = parse_survey_team(input)?;
     let (input, parameters) = parse_survey_parameters(input)?;
     let (input, _) = gobble_labels(input)?;
-    let (input, shots) = many0(parse_shot)(input)?;
+    let (input, shots) = many0(parse_shot).parse(input)?;
     let (input, _) = ws(tag("")).parse(input)?;
     Ok((
         input,
@@ -170,7 +169,7 @@ pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
 }
 
 pub fn parse_dat_file(input: &str) -> IResult<&str, Vec<Survey>> {
-    many0(parse_survey)(input)
+    many0(parse_survey).parse(input)
 }
 
 #[cfg(test)]
@@ -181,7 +180,7 @@ mod test {
     #[test]
     fn parse_example_data() {
         let input = include_str!("../../test_data/Fulford.dat");
-        let (_input, surveys) = many0(parse_survey)(input).unwrap();
+        let (_input, surveys) = many0(parse_survey).parse(input).unwrap();
 
         for survey in &surveys {
             // We have at least one gap in the serialization (FORMAT), so for now just do a test
