@@ -1,14 +1,13 @@
 use nom::{
-    IResult, Input, Parser,
+    IResult, Parser,
     branch::alt,
     bytes::complete::{tag, take_till, take_till1, take_until1},
     character::{
-        complete::{char, line_ending, multispace0, u8},
+        complete::{char, multispace0, u8},
         one_of,
     },
     combinator::value,
-    multi::{many0, many1, many1_count},
-    sequence::delimited,
+    multi::{many0, many1},
 };
 use std::{marker::PhantomData, path::PathBuf};
 use uuid::Uuid;

@@ -1,8 +1,10 @@
+mod survey_parameters;
+
 use chrono::NaiveDate;
 use nom::{
     IResult, Parser,
     bytes::complete::{tag, take_till1},
-    character::complete::{alpha1, multispace0, multispace1},
+    character::complete::{multispace0, multispace1},
     error::Error,
     multi::many0,
 };
@@ -10,9 +12,10 @@ use nom::{
 use crate::{
     common_types::Date,
     parser_utils::{parse_double, parse_station_name, parse_uint, recognize_line, ws},
+    survey::parser::survey_parameters::parse_survey_parameters,
 };
 
-use super::{BackSightCorrectionFactors, CorrectionFactors, Parameters, Shot, Survey};
+use super::{Shot, Survey};
 
 fn parse_cave_name(input: &str) -> IResult<&str, String> {
     let (input, cave_name) = recognize_line(input)?;
@@ -51,63 +54,6 @@ fn parse_survey_team(input: &str) -> IResult<&str, String> {
     let (input, _) = (tag("SURVEY TEAM:"), multispace1).parse(input)?;
     let (input, team_line) = recognize_line(input)?;
     Ok((input, team_line.to_string()))
-}
-
-fn parse_correction_factors(input: &str) -> IResult<&str, CorrectionFactors> {
-    let (input, _) = tag("CORRECTIONS:")(input)?;
-    let (input, azimuth) = parse_double(input)?;
-    let (input, inclination) = parse_double(input)?;
-    let (input, length) = parse_double(input)?;
-    Ok((
-        input,
-        CorrectionFactors {
-            azimuth,
-            inclination,
-            length,
-        },
-    ))
-}
-
-fn parse_backsight_correction_factors(input: &str) -> IResult<&str, BackSightCorrectionFactors> {
-    let (input, _) = tag("CORRECTIONS2:")(input)?;
-    let (input, azimuth) = parse_double(input)?;
-    let (input, inclination) = parse_double(input)?;
-    Ok((
-        input,
-        BackSightCorrectionFactors {
-            azimuth,
-            inclination,
-        },
-    ))
-}
-
-fn parse_survey_parameters(input: &str) -> IResult<&str, Parameters> {
-    let (input, parameter_line) = recognize_line(input)?;
-    let (parameter_line, _) = tag("DECLINATION:")(parameter_line)?;
-    let (parameter_line, declination) = parse_double(parameter_line)?;
-    let (parameter_line, _) = tag("FORMAT:")(parameter_line)?;
-    let (parameter_line, _) = multispace0(parameter_line)?;
-    let (parameter_line, _) = alpha1(parameter_line)?;
-    let (parameter_line, _) = multispace0(parameter_line)?;
-    let correction_factor_result = parse_correction_factors(parameter_line);
-    let (parameter_line, correction_factors) = match correction_factor_result {
-        Ok((input, correction_factors)) => (input, Some(correction_factors)),
-        Err(_) => (parameter_line, None),
-    };
-    let backsight_correction_factor_result = parse_backsight_correction_factors(parameter_line);
-    let (_, backsight_correction_factors) = match backsight_correction_factor_result {
-        Ok((input, backsight_correction_factors)) => (input, Some(backsight_correction_factors)),
-        Err(_) => (parameter_line, None),
-    };
-
-    Ok((
-        input,
-        Parameters {
-            declination,
-            correction_factors,
-            backsight_correction_factors,
-        },
-    ))
 }
 
 fn gobble_labels(input: &str) -> IResult<&str, &str> {
@@ -179,7 +125,7 @@ mod test {
 
     #[test]
     fn parse_example_data() {
-        let input = include_str!("../../test_data/Fulford.dat");
+        let input = include_str!("../../../test_data/Fulford.dat");
         let (_input, surveys) = many0(parse_survey).parse(input).unwrap();
 
         for survey in &surveys {
@@ -188,7 +134,7 @@ mod test {
             // Eventually we should be able to just do
             // `assert_str_eq!(survey.serialize(), input)`
             if survey.name == "CL" {
-                let source = include_str!("../../test_data/fulford_cave_survey.dat").trim();
+                let source = include_str!("../../../test_data/fulford_cave_survey.dat").trim();
                 let round_trip = survey.serialize();
                 println!("{source}");
                 println!("{round_trip}");

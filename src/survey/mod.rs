@@ -67,15 +67,61 @@ pub enum LRUDAssociation {
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct FileFormat {
+pub struct SurveyFormat11 {
     bearing_units: BearingUnits,
     length_units: LengthUnits,
     passage_units: LengthUnits,
     inclination_units: InclinationUnits,
-    passage_dimension_order: [Parameters; 4],
+    passage_dimension_order: [PassageDimension; 4],
+    shot_item_order: [ShotItem; 3],
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct SurveyFormat12 {
+    bearing_units: BearingUnits,
+    length_units: LengthUnits,
+    passage_units: LengthUnits,
+    inclination_units: InclinationUnits,
+    passage_dimension_order: [PassageDimension; 4],
+    shot_item_order: [ShotItem; 3],
+    backsight: RedundantBackSight,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct SurveyFormat13 {
+    bearing_units: BearingUnits,
+    length_units: LengthUnits,
+    passage_units: LengthUnits,
+    inclination_units: InclinationUnits,
+    passage_dimension_order: [PassageDimension; 4],
+    shot_item_order: [ShotItem; 3],
+    backsight: RedundantBackSight,
+    lrud_association: LRUDAssociation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct SurveyFormat15 {
+    bearing_units: BearingUnits,
+    length_units: LengthUnits,
+    passage_units: LengthUnits,
+    inclination_units: InclinationUnits,
+    passage_dimension_order: [PassageDimension; 4],
     shot_item_order: [ShotItem; 5],
     backsight: RedundantBackSight,
-    lrud_assosciation: LRUDAssociation,
+    lrud_association: LRUDAssociation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum SurveyFormat {
+    None,
+    Format11(SurveyFormat11),
+    Format12(SurveyFormat12),
+    Format13(SurveyFormat13),
+    Format15(SurveyFormat15),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -95,16 +141,20 @@ pub struct BackSightCorrectionFactors {
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct Parameters {
+pub struct SurveyParameters {
     pub declination: f64,
+    pub format_parameters: SurveyFormat,
     pub correction_factors: Option<CorrectionFactors>,
     pub backsight_correction_factors: Option<BackSightCorrectionFactors>,
 }
 
-impl Parameters {
+impl SurveyParameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
         result.push_str(&format!("DECLINATION:   {:>4.2}  ", self.declination));
+        match self.format_parameters {
+            _ => (),
+        }
         if let Some(correction_factors) = &self.correction_factors {
             result.push_str(&format!(
                 "CORRECTIONS:  {:.2} {:.2} {:.2}",
@@ -148,7 +198,7 @@ pub struct Survey {
     pub date: NaiveDate,
     pub comment: Option<String>,
     pub team: String,
-    pub parameters: Parameters,
+    pub parameters: SurveyParameters,
     pub shots: Vec<Shot>,
 }
 
@@ -197,7 +247,7 @@ impl Survey {
         } else {
             result.push_str("\r\n");
         }
-        result.push_str("SURVEY TEAM: \r\n");
+        result.push_str("SURVEY TEAM:\r\n");
         result.push_str(&format!("{}\r\n", self.team));
         result.push_str(&self.parameters.serialize());
         result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\r\n\r\n");
