@@ -15,6 +15,16 @@ pub enum BearingUnits {
     Grads,
 }
 
+impl BearingUnits {
+    fn as_char(&self) -> char {
+        match self {
+            Self::Degrees => 'D',
+            Self::Quads => 'Q',
+            Self::Grads => 'R',
+        }
+    }
+}
+
 /// Length Units are used to represent distance measurements
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -22,6 +32,16 @@ pub enum LengthUnits {
     DecimalFeet,
     FeetAndInches,
     Meters,
+}
+
+impl LengthUnits {
+    fn as_char(&self) -> char {
+        match self {
+            Self::DecimalFeet => 'D',
+            Self::FeetAndInches => 'I',
+            Self::Meters => 'M',
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,6 +54,18 @@ pub enum InclinationUnits {
     DepthGauge,
 }
 
+impl InclinationUnits {
+    fn as_char(&self) -> char {
+        match self {
+            Self::Degrees => 'D',
+            Self::PercentGrade => 'G',
+            Self::DegreesAndMinutes => 'M',
+            Self::Grads => 'R',
+            Self::DepthGauge => 'W',
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum PassageDimension {
@@ -41,6 +73,17 @@ pub enum PassageDimension {
     Right,
     Up,
     Down,
+}
+
+impl PassageDimension {
+    fn as_char(&self) -> char {
+        match self {
+            Self::Left => 'L',
+            Self::Right => 'R',
+            Self::Up => 'U',
+            Self::Down => 'D',
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +96,18 @@ pub enum ShotItem {
     BackInclination,
 }
 
+impl ShotItem {
+    fn as_char(&self) -> char {
+        match self {
+            Self::Length => 'L',
+            Self::Azimuth => 'A',
+            Self::Inclination => 'D',
+            Self::BackAzimuth => 'a',
+            Self::BackInclination => 'd',
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum RedundantBackSight {
@@ -60,11 +115,29 @@ pub enum RedundantBackSight {
     NoRedundantBacksight,
 }
 
+impl RedundantBackSight {
+    fn as_char(&self) -> char {
+        match self {
+            Self::RedundantBacksight => 'B',
+            Self::NoRedundantBacksight => 'N',
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum LRUDAssociation {
     FromStation,
     ToStation,
+}
+
+impl LRUDAssociation {
+    fn as_char(&self) -> char {
+        match self {
+            Self::FromStation => 'F',
+            Self::ToStation => 'T',
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -126,6 +199,91 @@ pub enum SurveyFormat {
     Format15(SurveyFormat15),
 }
 
+impl SurveyFormat11 {
+    fn serialize(&self) -> String {
+        let mut result = String::with_capacity(11);
+        result.push(self.bearing_units.as_char());
+        result.push(self.length_units.as_char());
+        result.push(self.passage_units.as_char());
+        result.push(self.inclination_units.as_char());
+        for dim in &self.passage_dimension_order {
+            result.push(dim.as_char());
+        }
+        for item in &self.shot_item_order {
+            result.push(item.as_char());
+        }
+        result
+    }
+}
+
+impl SurveyFormat12 {
+    fn serialize(&self) -> String {
+        let mut result = String::with_capacity(12);
+        result.push(self.bearing_units.as_char());
+        result.push(self.length_units.as_char());
+        result.push(self.passage_units.as_char());
+        result.push(self.inclination_units.as_char());
+        for dim in &self.passage_dimension_order {
+            result.push(dim.as_char());
+        }
+        for item in &self.shot_item_order {
+            result.push(item.as_char());
+        }
+        result.push(self.backsight.as_char());
+        result
+    }
+}
+
+impl SurveyFormat13 {
+    fn serialize(&self) -> String {
+        let mut result = String::with_capacity(13);
+        result.push(self.bearing_units.as_char());
+        result.push(self.length_units.as_char());
+        result.push(self.passage_units.as_char());
+        result.push(self.inclination_units.as_char());
+        for dim in &self.passage_dimension_order {
+            result.push(dim.as_char());
+        }
+        for item in &self.shot_item_order {
+            result.push(item.as_char());
+        }
+        result.push(self.backsight.as_char());
+        result.push(self.lrud_association.as_char());
+        result
+    }
+}
+
+impl SurveyFormat15 {
+    fn serialize(&self) -> String {
+        let mut result = String::with_capacity(15);
+        result.push(self.bearing_units.as_char());
+        result.push(self.length_units.as_char());
+        result.push(self.passage_units.as_char());
+        result.push(self.inclination_units.as_char());
+        for dim in &self.passage_dimension_order {
+            result.push(dim.as_char());
+        }
+        for item in &self.shot_item_order {
+            result.push(item.as_char());
+        }
+        result.push(self.backsight.as_char());
+        result.push(self.lrud_association.as_char());
+        result
+    }
+}
+
+impl SurveyFormat {
+    fn serialize(&self) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::Format11(f) => Some(f.serialize()),
+            Self::Format12(f) => Some(f.serialize()),
+            Self::Format13(f) => Some(f.serialize()),
+            Self::Format15(f) => Some(f.serialize()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct CorrectionFactors {
@@ -154,11 +312,13 @@ impl SurveyParameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
         let _ = write!(result, "DECLINATION:   {:>4.2}  ", self.declination);
-        // TODO: serialize format_parameters when needed
+        if let Some(format_str) = self.format_parameters.serialize() {
+            let _ = write!(result, "FORMAT: {format_str}  ");
+        }
         if let Some(cf) = &self.correction_factors {
             let _ = write!(
                 result,
-                "CORRECTIONS:  {:.2} {:.2} {:.2}",
+                "CORRECTIONS:  {:.2} {:.2} {:.2}  ",
                 cf.azimuth, cf.inclination, cf.length
             );
         }

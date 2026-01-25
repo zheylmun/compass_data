@@ -122,27 +122,41 @@ pub fn parse_dat_file(input: &str) -> IResult<&str, Vec<Survey>> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use pretty_assertions::assert_str_eq;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn parse_example_data() {
         let input = include_str!("../../../test_data/Fulford.dat");
         let (_input, surveys) = many0(parse_survey).parse(input).unwrap();
 
+        // Test round-trip: parse -> serialize -> parse should give same result
         for survey in &surveys {
-            // We have at least one gap in the serialization (FORMAT), so for now just do a test
-            // against a simplified survey
-            // Eventually we should be able to just do
-            // `assert_str_eq!(survey.serialize(), input)`
-            if survey.name == "CL" {
-                let source = include_str!("../../../test_data/fulford_cave_survey.dat").trim();
-                let round_trip = survey.serialize();
-                println!("{source}");
-                println!("{round_trip}");
-                assert_str_eq!(round_trip, source);
+            let serialized = survey.serialize();
+            let (_, reparsed_surveys) = many0(parse_survey).parse(&serialized).unwrap();
+            assert_eq!(reparsed_surveys.len(), 1, "Should parse back to one survey");
+            assert_eq!(
+                &reparsed_surveys[0], survey,
+                "Round-trip for survey '{}' failed",
+                survey.name
+            );
+        }
+    }
 
-                break;
-            }
+    #[test]
+    fn dat_file_round_trip() {
+        // Test that we can parse and re-serialize an entire .dat file
+        let input = include_str!("../../../test_data/Fulsurf.dat");
+        let (_, surveys) = parse_dat_file(input).unwrap();
+
+        for survey in &surveys {
+            let serialized = survey.serialize();
+            let (_, reparsed) = many0(parse_survey).parse(&serialized).unwrap();
+            assert_eq!(reparsed.len(), 1);
+            assert_eq!(
+                &reparsed[0], survey,
+                "Round-trip for survey '{}' failed",
+                survey.name
+            );
         }
     }
 }
