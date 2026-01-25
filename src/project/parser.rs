@@ -54,7 +54,7 @@ fn parse_project_id(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = char('/')(input)?;
     let (input, uuid_str) = many1(one_of("1234567890abcdefABCDEF-")).parse(input)?;
     let (input, _) = char(';')(input)?;
-    let uuid_str = String::from_iter(uuid_str.iter());
+    let uuid_str: String = uuid_str.iter().collect();
     let uuid = Uuid::parse_str(&uuid_str).map_err(|_e| {
         nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Fail))
     })?;
@@ -366,7 +366,7 @@ mod tests {
     use super::*;
     #[test]
     fn parse_format_examples() {
-        const FILE_PATH: &'static str = concat!(
+        const FILE_PATH: &str = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/test_data/project_file_examples"
         );

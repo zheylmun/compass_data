@@ -94,7 +94,8 @@ pub(crate) fn parse_survey(input: &str) -> IResult<&str, Survey> {
     let (input, name) = parse_survey_name(input)?;
     let (input, (date, comment)) = parse_survey_date_line(input)?;
     let date =
-        NaiveDate::from_ymd_opt(date.year as i32, date.month as u32, date.day as u32).unwrap();
+        NaiveDate::from_ymd_opt(i32::from(date.year), u32::from(date.month), u32::from(date.day))
+            .unwrap();
     let (input, team) = parse_survey_team(input)?;
     let (input, parameters) = parse_survey_parameters(input)?;
     let (input, _) = gobble_labels(input)?;

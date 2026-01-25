@@ -20,7 +20,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn test_at_path(project_path: &Path) {
-        let unloaded_project = Project::read(&project_path).unwrap();
+        let unloaded_project = Project::read(project_path).unwrap();
         // Make sure we can load all the project files too
         let _loaded_project = unloaded_project.load_survey_files().unwrap();
         println!("Successfully loaded project at :{project_path:?}");
@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn parse_environment_samples() {
         if let Ok(sample_dir) = std::env::var("COMPASS_DATA_SAMPLES") {
-            println!("Sample directory: {}", sample_dir);
+            println!("Sample directory: {sample_dir}");
             let sample_dir = std::fs::read_dir(sample_dir).unwrap();
             for file_entry in sample_dir {
                 let file_entry = file_entry.unwrap();
@@ -53,10 +53,9 @@ mod tests {
                 if file_path.exists()
                     && file_path.is_file()
                     && let Some(extension) = file_path.extension()
+                    && extension.to_ascii_lowercase().to_str().unwrap() == "mak"
                 {
-                    if extension.to_ascii_lowercase().to_str().unwrap() == "mak" {
-                        test_at_path(&file_path);
-                    }
+                    test_at_path(&file_path);
                 }
             }
         }

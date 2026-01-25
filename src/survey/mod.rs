@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use chrono::{Datelike, NaiveDate};
 
 use crate::Error;
@@ -151,23 +153,21 @@ pub struct SurveyParameters {
 impl SurveyParameters {
     fn serialize(&self) -> String {
         let mut result = String::new();
-        result.push_str(&format!("DECLINATION:   {:>4.2}  ", self.declination));
-        match self.format_parameters {
-            _ => (),
-        }
-        if let Some(correction_factors) = &self.correction_factors {
-            result.push_str(&format!(
+        let _ = write!(result, "DECLINATION:   {:>4.2}  ", self.declination);
+        // TODO: serialize format_parameters when needed
+        if let Some(cf) = &self.correction_factors {
+            let _ = write!(
+                result,
                 "CORRECTIONS:  {:.2} {:.2} {:.2}",
-                correction_factors.azimuth,
-                correction_factors.inclination,
-                correction_factors.length
-            ));
+                cf.azimuth, cf.inclination, cf.length
+            );
         }
-        if let Some(backsight_correction_factors) = &self.backsight_correction_factors {
-            result.push_str(&format!(
+        if let Some(bcf) = &self.backsight_correction_factors {
+            let _ = write!(
+                result,
                 "CORRECTIONS2: {:.1} {:.1}",
-                backsight_correction_factors.azimuth, backsight_correction_factors.inclination
-            ));
+                bcf.azimuth, bcf.inclination
+            );
         }
         result.push_str("\r\n");
         result
@@ -234,26 +234,28 @@ impl Survey {
     #[must_use]
     pub fn serialize(&self) -> String {
         let mut result = String::new();
-        result.push_str(&format!("{}\r\n", self.cave_name));
-        result.push_str(&format!("SURVEY NAME: {}\r\n", self.name));
-        result.push_str(&format!(
+        let _ = writeln!(result, "{}\r", self.cave_name);
+        let _ = writeln!(result, "SURVEY NAME: {}\r", self.name);
+        let _ = write!(
+            result,
             "SURVEY DATE: {} {} {}",
             self.date.month(),
             self.date.day0() + 1,
             self.date.year_ce().1,
-        ));
+        );
         if let Some(comment) = &self.comment {
-            result.push_str(&format!("  COMMENT:{comment}\r\n"));
+            let _ = writeln!(result, "  COMMENT:{comment}\r");
         } else {
             result.push_str("\r\n");
         }
         result.push_str("SURVEY TEAM:\r\n");
-        result.push_str(&format!("{}\r\n", self.team));
+        let _ = writeln!(result, "{}\r", self.team);
         result.push_str(&self.parameters.serialize());
         result.push_str("\n        FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT   FLAGS  COMMENTS\r\n\r\n");
         for shot in &self.shots {
-            result.push_str(&format!(
-                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\r\n",
+            let _ = writeln!(
+                result,
+                "{:>12}{:>13}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}{:>9.2}\r",
                 shot.from,
                 shot.to,
                 shot.length,
@@ -263,7 +265,7 @@ impl Survey {
                 shot.down,
                 shot.left,
                 shot.right
-            ));
+            );
         }
         result.push_str("\x0c\r\n");
         result
