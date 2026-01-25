@@ -2,6 +2,9 @@
 //!
 //! Converts raw input strings into a stream of tokens with source spans for error reporting.
 
+// False positives from thiserror/miette derive macros - fields are used for error display
+#![allow(unused_assignments)]
+
 use miette::{Diagnostic, SourceSpan};
 use nom::{
     IResult, Parser,

@@ -2,6 +2,9 @@
 //!
 //! Converts tokens from the lexer into a Project structure.
 
+// False positives from thiserror/miette derive macros - fields are used for error display
+#![allow(unused_assignments)]
+
 use std::{collections::HashSet, marker::PhantomData, path::PathBuf};
 
 use miette::{Diagnostic, SourceSpan};
