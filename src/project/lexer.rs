@@ -758,4 +758,81 @@ mod tests {
         assert!(matches!(&tokens[1].value, Token::SurveyFile { path, .. } if path == "cave1.dat"));
         assert!(matches!(tokens[2].value, Token::PopFolder));
     }
+
+    // Error handling tests
+    #[test]
+    fn test_lex_error_unexpected_char() {
+        let input = "^invalid";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, LexError::UnexpectedChar { char: '^', .. }));
+    }
+
+    #[test]
+    fn test_lex_error_invalid_base_location_missing_components() {
+        // Base location missing required components
+        let input = "@357715.717,4372837.574;";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::InvalidBaseLocation { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_invalid_base_location_bad_number() {
+        let input = "@abc,4372837.574,3048.000,13,-1.050;";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::InvalidBaseLocation { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_missing_semicolon_datum() {
+        // Input that truly has no semicolon at all
+        let input = "&North American 1983";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::MissingSemicolon { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_missing_semicolon_folder() {
+        // Input that has no semicolon after folder name
+        let input = "[Folder";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::MissingSemicolon { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_missing_semicolon_pop_folder() {
+        let input = "]";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::MissingSemicolon { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_invalid_station_fix_missing_unit() {
+        let input = "#file.dat,A1[1000,2000,3000];";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::InvalidStationFix { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_invalid_station_fix_bad_coordinates() {
+        let input = "#file.dat,A1[f,abc,2000,3000];";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::InvalidStationFix { .. }));
+    }
+
+    #[test]
+    fn test_lex_error_invalid_convergence_number() {
+        let input = "%abc;";
+        let result = tokenize(input);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), LexError::InvalidNumber { .. }));
+    }
 }

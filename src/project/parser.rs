@@ -451,4 +451,53 @@ mod tests {
         assert!(first_file.file_state.datum == Datum::NorthAmerican1983);
         assert!(!project.survey_files.is_empty());
     }
+
+    #[test]
+    fn parse_error_invalid_uuid() {
+        // Use hex chars and hyphens but wrong length (33 chars instead of 32)
+        // This passes the lexer check (hex + hyphens, len >= 32) but fails UUID::parse
+        let input = "/1234567890abcdef1234567890abcdef0;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::InvalidUuid { .. })));
+    }
+
+    #[test]
+    fn parse_error_duplicate_flag() {
+        let input = "@100.0,200.0,300.0,13,0.5;\n&WGS 1984;\n!GG;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::DuplicateFlag { flag: 'G', .. })));
+    }
+
+    #[test]
+    fn parse_error_unknown_flag() {
+        let input = "@100.0,200.0,300.0,13,0.5;\n&WGS 1984;\n!Z;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::UnknownFlag { flag: 'Z', .. })));
+    }
+
+    #[test]
+    fn parse_error_missing_base_location() {
+        // Only datum, no base location
+        let input = "&WGS 1984;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::MissingState { .. })));
+    }
+
+    #[test]
+    fn parse_error_missing_datum() {
+        // Only base location, no datum
+        let input = "@100.0,200.0,300.0,13,0.5;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::MissingState { .. })));
+    }
 }

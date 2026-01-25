@@ -183,4 +183,200 @@ mod test {
             "Should parse same number of surveys"
         );
     }
+
+    // Edge case tests
+    #[test]
+    fn test_parse_survey_no_shots() {
+        let input = "Test Cave\n\
+                     SURVEY NAME: A\n\
+                     SURVEY DATE: 1 15 2024\n\
+                     SURVEY TEAM:\n\
+                     John Doe\n\
+                     DECLINATION: 10.0\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                     \x0c\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert_eq!(survey.cave_name, "Test Cave");
+        assert_eq!(survey.name, "A");
+        assert!(survey.shots.is_empty());
+    }
+
+    #[test]
+    fn test_parse_survey_with_comment() {
+        let input = "Test Cave\n\
+                     SURVEY NAME: B\n\
+                     SURVEY DATE: 6 29 1987  COMMENT:This is a test comment\n\
+                     SURVEY TEAM:\n\
+                     Jane Doe\n\
+                     DECLINATION: 11.5\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                     \x0c\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert_eq!(survey.comment, Some("This is a test comment".to_string()));
+    }
+
+    #[test]
+    fn test_parse_survey_special_station_names() {
+        let input = "Test Cave\n\
+                     SURVEY NAME: C\n\
+                     SURVEY DATE: 1 1 2000\n\
+                     SURVEY TEAM:\n\
+                     Team\n\
+                     DECLINATION: 0.0\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                            A_1          A-2     10.0     90.0      0.0      1.0      2.0      3.0      4.0\n\
+                           A'3          A*4     15.0    180.0     -5.0      2.0      3.0      4.0      5.0\n\
+                     \x0c\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert_eq!(survey.shots.len(), 2);
+        assert_eq!(survey.shots[0].from, "A_1");
+        assert_eq!(survey.shots[0].to, "A-2");
+        assert_eq!(survey.shots[1].from, "A'3");
+        assert_eq!(survey.shots[1].to, "A*4");
+    }
+
+    #[test]
+    fn test_parse_survey_negative_values() {
+        let input = "Test Cave\n\
+                     SURVEY NAME: D\n\
+                     SURVEY DATE: 12 31 1999\n\
+                     SURVEY TEAM:\n\
+                     Team\n\
+                     DECLINATION: -5.5\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                              A1           A2     10.0    270.0    -45.0     -1.0     -2.0     -3.0     -4.0\n\
+                     \x0c\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert!((survey.parameters.declination - (-5.5)).abs() < 0.001);
+        assert!((survey.shots[0].inclination - (-45.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_survey_missing_data_marker() {
+        // -9999.0 is used to indicate missing LRUD data in Compass files
+        let input = "Test Cave\n\
+                     SURVEY NAME: E\n\
+                     SURVEY DATE: 6 15 2020\n\
+                     SURVEY TEAM:\n\
+                     Team\n\
+                     DECLINATION: 10.0\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                              A1           A2     10.0     90.0      0.0  -9999.0  -9999.0  -9999.0  -9999.0\n\
+                     \x0c\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert!((survey.shots[0].left - (-9999.0)).abs() < 0.001);
+        assert!((survey.shots[0].up - (-9999.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_survey_crlf_line_endings() {
+        let input = "Test Cave\r\n\
+                     SURVEY NAME: F\r\n\
+                     SURVEY DATE: 3 14 2023\r\n\
+                     SURVEY TEAM:\r\n\
+                     Team\r\n\
+                     DECLINATION: 0.0\r\n\
+                     \r\n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\r\n\
+                     \r\n\
+                     \x0c\r\n";
+        let (_, survey) = parse_survey(input).unwrap();
+        assert_eq!(survey.cave_name, "Test Cave");
+        assert_eq!(survey.name, "F");
+    }
+
+    #[test]
+    fn test_parse_cave_name() {
+        let (remaining, name) = parse_cave_name("My Cave Name\nrest").unwrap();
+        assert_eq!(name, "My Cave Name");
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_survey_name() {
+        let (remaining, name) = parse_survey_name("SURVEY NAME: ABC123\nrest").unwrap();
+        assert_eq!(name, "ABC123");
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_survey_date_without_comment() {
+        let (remaining, (date, comment)) =
+            parse_survey_date_line("SURVEY DATE: 6 29 1987\nrest").unwrap();
+        assert_eq!(date.month, 6);
+        assert_eq!(date.day, 29);
+        assert_eq!(date.year, 1987);
+        assert!(comment.is_none());
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_survey_date_with_comment() {
+        let (remaining, (date, comment)) =
+            parse_survey_date_line("SURVEY DATE: 12 25 2000  COMMENT:Holiday survey\nrest").unwrap();
+        assert_eq!(date.month, 12);
+        assert_eq!(date.day, 25);
+        assert_eq!(date.year, 2000);
+        assert_eq!(comment, Some("Holiday survey".to_string()));
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_survey_team() {
+        let (remaining, team) = parse_survey_team("SURVEY TEAM:\nAlice,Bob,Charlie\nrest").unwrap();
+        assert_eq!(team, "Alice,Bob,Charlie");
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_shot() {
+        let input = "          A1           A2     21.75    63.50   -28.00      2.60      2.60      2.60      2.60\nrest";
+        let (remaining, shot) = parse_shot(input).unwrap();
+        assert_eq!(shot.from, "A1");
+        assert_eq!(shot.to, "A2");
+        assert!((shot.length - 21.75).abs() < 0.001);
+        assert!((shot.azimuth - 63.50).abs() < 0.001);
+        assert!((shot.inclination - (-28.0)).abs() < 0.001);
+        assert_eq!(remaining, "rest");
+    }
+
+    #[test]
+    fn test_parse_multiple_surveys_in_file() {
+        let input = "Cave One\n\
+                     SURVEY NAME: A\n\
+                     SURVEY DATE: 1 1 2020\n\
+                     SURVEY TEAM:\n\
+                     Team A\n\
+                     DECLINATION: 10.0\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                     \x0c\n\
+                     Cave Two\n\
+                     SURVEY NAME: B\n\
+                     SURVEY DATE: 2 2 2021\n\
+                     SURVEY TEAM:\n\
+                     Team B\n\
+                     DECLINATION: 11.0\n\
+                     \n\
+                            FROM           TO   LENGTH  BEARING      INC     LEFT       UP     DOWN    RIGHT\n\
+                     \n\
+                     \x0c\n";
+        let (_, surveys) = parse_dat_file(input).unwrap();
+        assert_eq!(surveys.len(), 2);
+        assert_eq!(surveys[0].cave_name, "Cave One");
+        assert_eq!(surveys[0].name, "A");
+        assert_eq!(surveys[1].cave_name, "Cave Two");
+        assert_eq!(surveys[1].name, "B");
+    }
 }

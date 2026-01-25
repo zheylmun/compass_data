@@ -255,3 +255,267 @@ pub(super) fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParame
         },
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use float_eq::assert_float_eq;
+
+    // Bearing units tests
+    #[test]
+    fn test_parse_bearing_units() {
+        assert_eq!(parse_bearing_units("D").unwrap().1, BearingUnits::Degrees);
+        assert_eq!(parse_bearing_units("Q").unwrap().1, BearingUnits::Quads);
+        assert_eq!(parse_bearing_units("R").unwrap().1, BearingUnits::Grads);
+        assert!(parse_bearing_units("X").is_err());
+    }
+
+    // Length units tests
+    #[test]
+    fn test_parse_length_units() {
+        assert_eq!(parse_length_units("D").unwrap().1, LengthUnits::DecimalFeet);
+        assert_eq!(parse_length_units("I").unwrap().1, LengthUnits::FeetAndInches);
+        assert_eq!(parse_length_units("M").unwrap().1, LengthUnits::Meters);
+        assert!(parse_length_units("X").is_err());
+    }
+
+    // Inclination units tests
+    #[test]
+    fn test_parse_inclination_units() {
+        assert_eq!(parse_inclination_units("D").unwrap().1, InclinationUnits::Degrees);
+        assert_eq!(parse_inclination_units("G").unwrap().1, InclinationUnits::PercentGrade);
+        assert_eq!(parse_inclination_units("M").unwrap().1, InclinationUnits::DegreesAndMinutes);
+        assert_eq!(parse_inclination_units("R").unwrap().1, InclinationUnits::Grads);
+        assert_eq!(parse_inclination_units("W").unwrap().1, InclinationUnits::DepthGauge);
+        assert!(parse_inclination_units("X").is_err());
+    }
+
+    // Passage dimension tests
+    #[test]
+    fn test_parse_passage_dimension() {
+        assert_eq!(parse_passage_dimension("U").unwrap().1, PassageDimension::Up);
+        assert_eq!(parse_passage_dimension("D").unwrap().1, PassageDimension::Down);
+        assert_eq!(parse_passage_dimension("L").unwrap().1, PassageDimension::Left);
+        assert_eq!(parse_passage_dimension("R").unwrap().1, PassageDimension::Right);
+        assert!(parse_passage_dimension("X").is_err());
+    }
+
+    #[test]
+    fn test_parse_passage_dimension_order() {
+        let (remaining, order) = parse_passage_dimension_order("UDLR").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(order[0], PassageDimension::Up);
+        assert_eq!(order[1], PassageDimension::Down);
+        assert_eq!(order[2], PassageDimension::Left);
+        assert_eq!(order[3], PassageDimension::Right);
+
+        // Different order
+        let (_, order) = parse_passage_dimension_order("RLDU").unwrap();
+        assert_eq!(order[0], PassageDimension::Right);
+        assert_eq!(order[3], PassageDimension::Up);
+    }
+
+    // Shot item tests
+    #[test]
+    fn test_parse_shot_item() {
+        assert_eq!(parse_shot_item("L").unwrap().1, ShotItem::Length);
+        assert_eq!(parse_shot_item("A").unwrap().1, ShotItem::Azimuth);
+        assert_eq!(parse_shot_item("D").unwrap().1, ShotItem::Inclination);
+        assert_eq!(parse_shot_item("a").unwrap().1, ShotItem::BackAzimuth);
+        assert_eq!(parse_shot_item("d").unwrap().1, ShotItem::BackInclination);
+    }
+
+    #[test]
+    fn test_parse_shot_item_order_3() {
+        let (remaining, order) = parse_shot_item_order_3("LAD").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(order[0], ShotItem::Length);
+        assert_eq!(order[1], ShotItem::Azimuth);
+        assert_eq!(order[2], ShotItem::Inclination);
+    }
+
+    #[test]
+    fn test_parse_shot_item_order_5() {
+        let (remaining, order) = parse_shot_item_order_5("LADad").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(order[0], ShotItem::Length);
+        assert_eq!(order[4], ShotItem::BackInclination);
+    }
+
+    // Backsight and LRUD association tests
+    #[test]
+    fn test_parse_backsight() {
+        assert_eq!(parse_backsight("B").unwrap().1, RedundantBackSight::RedundantBacksight);
+        assert_eq!(parse_backsight("N").unwrap().1, RedundantBackSight::NoRedundantBacksight);
+        assert!(parse_backsight("X").is_err());
+    }
+
+    #[test]
+    fn test_parse_lrud_association() {
+        assert_eq!(parse_lrud_association("F").unwrap().1, LRUDAssociation::FromStation);
+        assert_eq!(parse_lrud_association("T").unwrap().1, LRUDAssociation::ToStation);
+        assert!(parse_lrud_association("X").is_err());
+    }
+
+    // Format parsing tests
+    #[test]
+    fn test_parse_survey_format_none() {
+        let (remaining, format) = parse_survey_format("no format here").unwrap();
+        assert_eq!(remaining, "no format here");
+        assert!(matches!(format, SurveyFormat::None));
+    }
+
+    #[test]
+    fn test_parse_survey_format_11() {
+        let (remaining, format) = parse_survey_format("FORMAT: DDDDUDLRLAD  rest").unwrap();
+        assert_eq!(remaining, "  rest");
+        match format {
+            SurveyFormat::Format11(f) => {
+                assert_eq!(f.bearing_units, BearingUnits::Degrees);
+                assert_eq!(f.length_units, LengthUnits::DecimalFeet);
+            }
+            _ => panic!("Expected Format11"),
+        }
+    }
+
+    #[test]
+    fn test_parse_survey_format_12() {
+        let (_, format) = parse_survey_format("FORMAT: DDDDUDLRLADN").unwrap();
+        match format {
+            SurveyFormat::Format12(f) => {
+                assert_eq!(f.backsight, RedundantBackSight::NoRedundantBacksight);
+            }
+            _ => panic!("Expected Format12"),
+        }
+
+        let (_, format) = parse_survey_format("FORMAT: DDDDUDLRLADB").unwrap();
+        match format {
+            SurveyFormat::Format12(f) => {
+                assert_eq!(f.backsight, RedundantBackSight::RedundantBacksight);
+            }
+            _ => panic!("Expected Format12"),
+        }
+    }
+
+    #[test]
+    fn test_parse_survey_format_13() {
+        let (_, format) = parse_survey_format("FORMAT: DDDDUDLRLADNF").unwrap();
+        match format {
+            SurveyFormat::Format13(f) => {
+                assert_eq!(f.lrud_association, LRUDAssociation::FromStation);
+            }
+            _ => panic!("Expected Format13"),
+        }
+
+        let (_, format) = parse_survey_format("FORMAT: DDDDUDLRLADNT").unwrap();
+        match format {
+            SurveyFormat::Format13(f) => {
+                assert_eq!(f.lrud_association, LRUDAssociation::ToStation);
+            }
+            _ => panic!("Expected Format13"),
+        }
+    }
+
+    #[test]
+    fn test_parse_survey_format_15() {
+        let (_, format) = parse_survey_format("FORMAT: DDDDUDLRLADadNF").unwrap();
+        match format {
+            SurveyFormat::Format15(f) => {
+                assert_eq!(f.shot_item_order[3], ShotItem::BackAzimuth);
+                assert_eq!(f.shot_item_order[4], ShotItem::BackInclination);
+            }
+            _ => panic!("Expected Format15"),
+        }
+    }
+
+    #[test]
+    fn test_parse_survey_format_invalid_length() {
+        // 10 characters - not a valid format length
+        let result = parse_survey_format("FORMAT: DDDDUDLRLA");
+        assert!(result.is_err());
+    }
+
+    // Correction factors tests
+    #[test]
+    fn test_parse_correction_factors() {
+        let (remaining, cf) = parse_correction_factors("CORRECTIONS:  1.5 -2.0 0.5  rest").unwrap();
+        assert_eq!(remaining, "rest");
+        assert_float_eq!(cf.azimuth, 1.5, abs <= 1e-10);
+        assert_float_eq!(cf.inclination, -2.0, abs <= 1e-10);
+        assert_float_eq!(cf.length, 0.5, abs <= 1e-10);
+    }
+
+    #[test]
+    fn test_parse_correction_factors_zero() {
+        let (_, cf) = parse_correction_factors("CORRECTIONS: 0.0 0.0 0.0").unwrap();
+        assert_float_eq!(cf.azimuth, 0.0, abs <= 1e-10);
+        assert_float_eq!(cf.inclination, 0.0, abs <= 1e-10);
+        assert_float_eq!(cf.length, 0.0, abs <= 1e-10);
+    }
+
+    #[test]
+    fn test_parse_backsight_correction_factors() {
+        let (_, bcf) = parse_backsight_correction_factors("CORRECTIONS2: 1.0 -1.0").unwrap();
+        assert_float_eq!(bcf.azimuth, 1.0, abs <= 1e-10);
+        assert_float_eq!(bcf.inclination, -1.0, abs <= 1e-10);
+    }
+
+    // Full survey parameters tests
+    #[test]
+    fn test_parse_survey_parameters_minimal() {
+        let input = "DECLINATION: 11.5\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        assert_float_eq!(params.declination, 11.5, abs <= 1e-10);
+        assert!(matches!(params.format_parameters, SurveyFormat::None));
+        assert!(params.correction_factors.is_none());
+        assert!(params.backsight_correction_factors.is_none());
+    }
+
+    #[test]
+    fn test_parse_survey_parameters_with_format() {
+        let input = "DECLINATION: 11.18  FORMAT: DDDDUDLRLADN\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        assert_float_eq!(params.declination, 11.18, abs <= 1e-10);
+        assert!(matches!(params.format_parameters, SurveyFormat::Format12(_)));
+    }
+
+    #[test]
+    fn test_parse_survey_parameters_with_corrections() {
+        let input = "DECLINATION: 11.18  FORMAT: DDDDUDLRLADN  CORRECTIONS: 1.0 2.0 3.0\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        let cf = params.correction_factors.unwrap();
+        assert_float_eq!(cf.azimuth, 1.0, abs <= 1e-10);
+        assert_float_eq!(cf.inclination, 2.0, abs <= 1e-10);
+        assert_float_eq!(cf.length, 3.0, abs <= 1e-10);
+    }
+
+    #[test]
+    fn test_parse_survey_parameters_with_backsight_corrections() {
+        let input = "DECLINATION: 11.18  FORMAT: DDDDUDLRLADN  CORRECTIONS: 1.0 2.0 3.0  CORRECTIONS2: 0.5 -0.5\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        let bcf = params.backsight_correction_factors.unwrap();
+        assert_float_eq!(bcf.azimuth, 0.5, abs <= 1e-10);
+        assert_float_eq!(bcf.inclination, -0.5, abs <= 1e-10);
+    }
+
+    #[test]
+    fn test_parse_survey_parameters_negative_declination() {
+        let input = "DECLINATION: -5.0\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        assert_float_eq!(params.declination, -5.0, abs <= 1e-10);
+    }
+
+    #[test]
+    fn test_parse_survey_parameters_different_units() {
+        let input = "DECLINATION: 0.0  FORMAT: QMMDUDLRLAD\n";
+        let (_, params) = parse_survey_parameters(input).unwrap();
+        match params.format_parameters {
+            SurveyFormat::Format11(f) => {
+                assert_eq!(f.bearing_units, BearingUnits::Quads);
+                assert_eq!(f.length_units, LengthUnits::Meters);
+                assert_eq!(f.passage_units, LengthUnits::Meters);
+            }
+            _ => panic!("Expected Format11"),
+        }
+    }
+}
