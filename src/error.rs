@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
+use miette::Diagnostic;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Diagnostic)]
 pub enum Error {
     #[error("Project file not found: {0}")]
     ProjectFileNotFound(PathBuf),

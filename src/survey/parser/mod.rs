@@ -159,4 +159,28 @@ mod test {
             );
         }
     }
+
+    #[test]
+    fn test_parse_dat_file_returns_surveys() {
+        // Verify that parse_dat_file actually returns surveys (not an empty vec)
+        let input = include_str!("../../../test_data/Fulford.dat");
+        let (_, surveys) = parse_dat_file(input).unwrap();
+        assert_eq!(surveys.len(), 25, "Should parse all 25 surveys from Fulford.dat");
+    }
+
+    #[test]
+    fn test_read_to_string_matches_include_str() {
+        // Verify that read_to_string produces the same result as include_str
+        let include_input = include_str!("../../../test_data/Fulford.dat");
+        let read_input = std::fs::read_to_string("test_data/Fulford.dat").unwrap();
+
+        let (_, include_surveys) = parse_dat_file(include_input).unwrap();
+        let (_, read_surveys) = parse_dat_file(&read_input).unwrap();
+
+        assert_eq!(
+            include_surveys.len(),
+            read_surveys.len(),
+            "Should parse same number of surveys"
+        );
+    }
 }

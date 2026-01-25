@@ -10,6 +10,7 @@ repository = "https://github.com/zheylmun/compass_data"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"], optional = true }
 miette = "7"
 nom = "8"
 utm = "0.1"
@@ -26,3 +27,9 @@ serde_json = "1"
 [features]
 default = []
 serde = ["dep:serde"]
+cli = ["dep:clap", "miette/fancy"]
+
+[[bin]]
+name = "compass"
+path = "src/bin/compass.rs"
+required-features = ["cli"]

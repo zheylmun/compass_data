@@ -421,9 +421,9 @@ impl Survey {
                 shot.length,
                 shot.azimuth,
                 shot.inclination,
+                shot.left,
                 shot.up,
                 shot.down,
-                shot.left,
                 shot.right
             );
         }

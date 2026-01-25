@@ -111,19 +111,26 @@ fn parse_survey_format(input: &str) -> IResult<&str, SurveyFormat> {
         return Ok((input, SurveyFormat::None));
     };
 
-    let format_len = input.len();
+    // Extract just the format string (alphabetic characters until whitespace or other delimiter)
+    let (format_remaining, format_str) = alpha1(input)?;
 
-    let (input, bearing_units) = parse_bearing_units(input)?;
-    let (input, length_units) = parse_length_units(input)?;
-    let (input, passage_units) = parse_length_units(input)?;
-    let (input, inclination_units) = parse_inclination_units(input)?;
-    let (input, passage_dimension_order) = parse_passage_dimension_order(input)?;
+    let format_len = format_str.len();
+
+    let (_, bearing_units) = parse_bearing_units(format_str)?;
+    let format_str = &format_str[1..];
+    let (_, length_units) = parse_length_units(format_str)?;
+    let format_str = &format_str[1..];
+    let (_, passage_units) = parse_length_units(format_str)?;
+    let format_str = &format_str[1..];
+    let (_, inclination_units) = parse_inclination_units(format_str)?;
+    let format_str = &format_str[1..];
+    let (format_str, passage_dimension_order) = parse_passage_dimension_order(format_str)?;
 
     match format_len {
         11 => {
-            let (input, shot_item_order) = parse_shot_item_order_3(input)?;
+            let (_, shot_item_order) = parse_shot_item_order_3(format_str)?;
             Ok((
-                input,
+                format_remaining,
                 SurveyFormat::Format11(SurveyFormat11 {
                     bearing_units,
                     length_units,
@@ -135,10 +142,10 @@ fn parse_survey_format(input: &str) -> IResult<&str, SurveyFormat> {
             ))
         }
         12 => {
-            let (input, shot_item_order) = parse_shot_item_order_3(input)?;
-            let (input, backsight) = parse_backsight(input)?;
+            let (format_str, shot_item_order) = parse_shot_item_order_3(format_str)?;
+            let (_, backsight) = parse_backsight(format_str)?;
             Ok((
-                input,
+                format_remaining,
                 SurveyFormat::Format12(SurveyFormat12 {
                     bearing_units,
                     length_units,
@@ -151,11 +158,11 @@ fn parse_survey_format(input: &str) -> IResult<&str, SurveyFormat> {
             ))
         }
         13 => {
-            let (input, shot_item_order) = parse_shot_item_order_3(input)?;
-            let (input, backsight) = parse_backsight(input)?;
-            let (input, lrud_association) = parse_lrud_association(input)?;
+            let (format_str, shot_item_order) = parse_shot_item_order_3(format_str)?;
+            let (format_str, backsight) = parse_backsight(format_str)?;
+            let (_, lrud_association) = parse_lrud_association(format_str)?;
             Ok((
-                input,
+                format_remaining,
                 SurveyFormat::Format13(SurveyFormat13 {
                     bearing_units,
                     length_units,
@@ -169,11 +176,11 @@ fn parse_survey_format(input: &str) -> IResult<&str, SurveyFormat> {
             ))
         }
         15 => {
-            let (input, shot_item_order) = parse_shot_item_order_5(input)?;
-            let (input, backsight) = parse_backsight(input)?;
-            let (input, lrud_association) = parse_lrud_association(input)?;
+            let (format_str, shot_item_order) = parse_shot_item_order_5(format_str)?;
+            let (format_str, backsight) = parse_backsight(format_str)?;
+            let (_, lrud_association) = parse_lrud_association(format_str)?;
             Ok((
-                input,
+                format_remaining,
                 SurveyFormat::Format15(SurveyFormat15 {
                     bearing_units,
                     length_units,
@@ -187,7 +194,7 @@ fn parse_survey_format(input: &str) -> IResult<&str, SurveyFormat> {
             ))
         }
         _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
+            format_remaining,
             nom::error::ErrorKind::LengthValue,
         ))),
     }
@@ -226,7 +233,6 @@ pub(super) fn parse_survey_parameters(input: &str) -> IResult<&str, SurveyParame
     let (parameter_line, _) = tag("DECLINATION:")(parameter_line)?;
     let (parameter_line, declination) = parse_double(parameter_line)?;
     let (parameter_line, format_parameters) = parse_survey_format(parameter_line)?;
-    let (parameter_line, _) = alpha1(parameter_line)?;
     let (parameter_line, _) = multispace0(parameter_line)?;
     let correction_factor_result = parse_correction_factors(parameter_line);
     let (parameter_line, correction_factors) = match correction_factor_result {
