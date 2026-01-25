@@ -46,6 +46,59 @@ pub enum Datum {
     WGS1984,
 }
 
+/// Declination mode for project-level declination handling
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum DeclinationMode {
+    /// Declinations are ignored
+    Ignore,
+    /// Use declinations entered in the survey book
+    #[default]
+    Entered,
+    /// Calculate declinations from survey date and geographic location
+    Auto,
+}
+
+/// Project-level parameter flags from the `!` parameter in MAK files
+///
+/// All flags are optional and order-independent when parsing.
+/// Missing flags use default values.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ProjectParameters {
+    /// Whether all settings are globally overridden by project settings (G/g)
+    pub global_override: bool,
+    /// How declinations are derived and processed (I/E/A)
+    pub declination_mode: DeclinationMode,
+    /// Whether UTM convergence should be applied to the data (V/v)
+    pub utm_convergence_applied: bool,
+    /// Whether LRUD association settings are overridden (O/o)
+    pub override_lrud_association: bool,
+    /// If `override_lrud_association` is true, whether LRUDs associate with "To" station (T/t)
+    pub lrud_to_station: bool,
+    /// Whether shot flags are applied (S/s)
+    pub shot_flags_applied: bool,
+    /// Whether "X" total exclusion flags are applied (X/x)
+    pub total_exclusion_applied: bool,
+    /// Whether "P" plotting exclusion flags are applied (P/p)
+    pub plotting_exclusion_applied: bool,
+    /// Whether "L" length exclusion flags are applied (L/l)
+    pub length_exclusion_applied: bool,
+    /// Whether "C" close-exclusion flags are applied (C/c)
+    pub close_exclusion_applied: bool,
+}
+
+/// UTM Convergence parameter from the `%` or `*` parameter in MAK files
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct FileConvergence {
+    /// Whether file-level convergence is enabled (`%`) or disabled (`*`)
+    pub enabled: bool,
+    /// The convergence angle value
+    pub angle: f64,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Station {
@@ -102,12 +155,16 @@ pub struct Project<S> {
     /// The file path to the project file on disk
     /// This is used to resolve relative paths to survey data files
     /// # Note
-    /// igoned for equality checks
+    /// ignored for equality checks
     pub file_path: PathBuf,
     pub base_location: UtmLocation,
     pub datum: Datum,
     /// The UTM zone used for fixed stations in the project
     pub utm_zone: Option<u8>,
+    /// File-level convergence parameter
+    pub file_convergence: Option<FileConvergence>,
+    /// Project-level parameter flags
+    pub project_parameters: Option<ProjectParameters>,
     pub survey_files: Vec<DatFile<S>>,
     state: PhantomData<S>,
 }
@@ -118,6 +175,8 @@ impl PartialEq for Project<Unloaded> {
             && self.base_location == other.base_location
             && self.datum == other.datum
             && self.utm_zone == other.utm_zone
+            && self.file_convergence == other.file_convergence
+            && self.project_parameters == other.project_parameters
             && self.survey_files == other.survey_files
     }
 }
@@ -128,6 +187,8 @@ impl PartialEq for Project<Loaded> {
             && self.base_location == other.base_location
             && self.datum == other.datum
             && self.utm_zone == other.utm_zone
+            && self.file_convergence == other.file_convergence
+            && self.project_parameters == other.project_parameters
             && self.survey_files == other.survey_files
     }
 }
@@ -176,6 +237,8 @@ impl Project<Unloaded> {
             base_location: self.base_location,
             datum: self.datum,
             utm_zone: self.utm_zone,
+            file_convergence: self.file_convergence,
+            project_parameters: self.project_parameters,
             survey_files,
             state: PhantomData::<Loaded>,
         })
@@ -199,6 +262,8 @@ impl Project<Loaded> {
             base_location,
             datum,
             utm_zone,
+            file_convergence: None,
+            project_parameters: None,
             survey_files: Vec::new(),
             state: PhantomData::<Loaded>,
         }

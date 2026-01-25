@@ -313,7 +313,10 @@ The flag string begins with an  Exclamation Point (!) and ends with a Semicolon 
 10. "C" or "c"
   This option indicates whether the "C" close-exclusion flags are applied.
   A capital letter enables the option; lower case disables it.
- 
+
+Note: All flags are optional and order-independent. Missing flags use default values.
+No duplicate flags are allowed (e.g., both 'G' and 'g' cannot appear in the same string).
+
 Example:
 
 ```

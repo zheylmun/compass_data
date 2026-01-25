@@ -12,10 +12,15 @@ use nom::{
 use std::{marker::PhantomData, path::PathBuf};
 use uuid::Uuid;
 
+use std::collections::HashSet;
+
 use crate::{
     EastNorthElevation,
     parser_utils::{is_valid_station_name_char, parse_double, ws},
-    project::{DatFile, Datum, Project, Station, Unloaded, UtmLocation},
+    project::{
+        DatFile, Datum, DeclinationMode, FileConvergence, Project, ProjectParameters, Station,
+        Unloaded, UtmLocation,
+    },
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,8 +30,10 @@ enum ProjectElement {
     CarriageReturn,
     Comment(String),
     Datum(Datum),
+    FileConvergence(FileConvergence),
     LineFeed,
     File(DatFile<Unloaded>),
+    ProjectParameters(ProjectParameters),
     PushFolder(String),
     PopFolder,
     UtmZone(u8),
@@ -207,6 +214,70 @@ fn parse_utm_zone(input: &str) -> IResult<&str, ProjectElement> {
     Ok((input, ProjectElement::UtmZone(zone)))
 }
 
+fn parse_file_convergence(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, enabled) = alt((value(true, char('%')), value(false, char('*')))).parse(input)?;
+    let (input, angle) = parse_double(input)?;
+    let (input, _) = char(';')(input)?;
+    Ok((
+        input,
+        ProjectElement::FileConvergence(FileConvergence { enabled, angle }),
+    ))
+}
+
+fn parse_project_parameters(input: &str) -> IResult<&str, ProjectElement> {
+    let (input, _) = char('!')(input)?;
+    let (input, flags_str) = take_till(|c| c == ';')(input)?;
+    let (input, _) = char(';')(input)?;
+
+    let mut params = ProjectParameters::default();
+    let mut seen = HashSet::new();
+
+    for c in flags_str.chars() {
+        let key = c.to_ascii_uppercase();
+        // For I/E/A, they're mutually exclusive but different keys
+        let duplicate_key = match key {
+            'I' | 'E' | 'A' => 'D', // Use 'D' as declination group key
+            _ => key,
+        };
+        if !seen.insert(duplicate_key) {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Fail,
+            )));
+        }
+        match c {
+            'G' => params.global_override = true,
+            'g' => params.global_override = false,
+            'I' => params.declination_mode = DeclinationMode::Ignore,
+            'E' => params.declination_mode = DeclinationMode::Entered,
+            'A' => params.declination_mode = DeclinationMode::Auto,
+            'V' => params.utm_convergence_applied = true,
+            'v' => params.utm_convergence_applied = false,
+            'O' => params.override_lrud_association = true,
+            'o' => params.override_lrud_association = false,
+            'T' => params.lrud_to_station = true,
+            't' => params.lrud_to_station = false,
+            'S' => params.shot_flags_applied = true,
+            's' => params.shot_flags_applied = false,
+            'X' => params.total_exclusion_applied = true,
+            'x' => params.total_exclusion_applied = false,
+            'P' => params.plotting_exclusion_applied = true,
+            'p' => params.plotting_exclusion_applied = false,
+            'L' => params.length_exclusion_applied = true,
+            'l' => params.length_exclusion_applied = false,
+            'C' => params.close_exclusion_applied = true,
+            'c' => params.close_exclusion_applied = false,
+            _ => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Fail,
+                )));
+            }
+        }
+    }
+    Ok((input, ProjectElement::ProjectParameters(params)))
+}
+
 fn parse_whitespace(input: &str) -> IResult<&str, ProjectElement> {
     let (input, _) = take_till1(|c: char| !c.is_whitespace())(input)?;
     Ok((input, ProjectElement::Whitespace))
@@ -219,8 +290,10 @@ fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
         value(ProjectElement::CarriageReturn, char('\r')),
         parse_comment,
         parse_datum,
+        parse_file_convergence,
         value(ProjectElement::LineFeed, char('\n')),
         parse_project_file,
+        parse_project_parameters,
         parse_push_folder,
         parse_pop_folder,
         parse_utm_zone,
@@ -237,6 +310,9 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
     let mut datum: Option<Datum> = None;
     let mut survey_data_files: Vec<DatFile<Unloaded>> = Vec::new();
     let mut folders = Vec::new();
+    let mut utm_zone: Option<u8> = None;
+    let mut file_convergence: Option<FileConvergence> = None;
+    let mut project_parameters: Option<ProjectParameters> = None;
 
     while let Ok((munched, element)) = parse_project_element(input) {
         input = munched;
@@ -249,9 +325,17 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
             }
             ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
             ProjectElement::File(file_info) => survey_data_files.push(file_info),
+            ProjectElement::FileConvergence(convergence) => {
+                file_convergence = Some(convergence);
+            }
+            ProjectElement::ProjectParameters(params) => {
+                project_parameters = Some(params);
+            }
             ProjectElement::PushFolder(folder) => folders.push(folder),
             ProjectElement::PopFolder => _ = folders.pop(),
-
+            ProjectElement::UtmZone(zone) => {
+                utm_zone = Some(zone);
+            }
             _ => (),
         }
     }
@@ -264,7 +348,9 @@ pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, P
                 base_location,
                 datum,
                 survey_files: survey_data_files,
-                utm_zone: None,
+                utm_zone,
+                file_convergence,
+                project_parameters,
                 state: PhantomData::<Unloaded>,
             },
         ))

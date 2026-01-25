@@ -6,7 +6,9 @@ mod project;
 mod survey;
 pub use common_types::{EastNorthElevation, UtmLocation};
 pub use error::Error;
-pub use project::{DatFile, Datum, Loaded, Project, Unloaded};
+pub use project::{
+    DatFile, Datum, DeclinationMode, FileConvergence, Loaded, Project, ProjectParameters, Unloaded,
+};
 pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters};
 
 #[cfg(test)]
@@ -21,6 +23,7 @@ mod tests {
         let unloaded_project = Project::read(&project_path).unwrap();
         // Make sure we can load all the project files too
         let _loaded_project = unloaded_project.load_survey_files().unwrap();
+        println!("Successfully loaded project at :{project_path:?}");
     }
 
     #[test]
@@ -55,7 +58,6 @@ mod tests {
                         test_at_path(&file_path);
                     }
                 }
-                {}
             }
         }
     }
