@@ -243,3 +243,81 @@ KA1,KO4,KI24,KK33,KK37,KK41,KK53,BB33,SD15;
 #WIND6.DAT,
 SE202;                             /from Wind4 to Wind6
 ```
+
+### Parameters
+
+There are two additional parameters that can be specified in a Project File. Each one is specified by a special character. The information is terminated with a semicolon “;”. Here is a list of the parameters:[]
+ 
+#### UTM Convergence
+
+Convergence is an angle value that is used to align the cave map to the UTM grid.
+Click here for detailed information on Convergence. 
+The Convergence Angle parameter begins with either a percent sign (%) or a star (*) and ends with a semicolon (;).
+The convergence value is found inside the delimiters and can be any ASCII fixed or floating point number.
+For example:
+ 
+ ```
+Example: %12.34;
+Example: *12.34;
+```
+
+The percent sign (%) symbol indicates that file-level convergence is enabled. The star (*) symbol indicates that the file-level convergence is disabled.
+ 
+#### UTM Zone
+
+The UTM coordinate system divides the world up into zones.
+This parameter allows you to specify the zone that will be used for the fixed stations defined in the project file.
+The Zone parameter begins with a dollar sign ($) and ends with a semicolon (;).
+The Zone value is found inside the dollar-semicolon pair and can be any ASCII integer value.
+For example:
+
+``` 
+Example: $12;
+```
+#### Project Parameters
+
+These parameter specifies a series flags that are saved with the Project file.
+As such, when they are enabled, they override the lower level options and settings.
+The flag string begins with an  Exclamation Point (!) and ends with a Semicolon (;) Here is a list of the flags:
+ 
+ 
+1. "G" or "g"
+  This flag controls whether all settings are globally overridden by projects settings.
+  A capital letter enables the option; lower case disables it. 
+2. "I", "E", "A" 
+  This flag controls how declinations are derived and processed.
+  An "I" indicates that Declinations are ignored.
+  An "E" indicates that the declinations entered in the survey book should be used and an "A" indicates they should be calculated from the survey date and the geographic location.
+3.  "V" or "v"
+  This flag indicates whether UTM convergence should be applied to the data.
+  A capital letter enables the option; lower case disables it.
+4. "O" or "o"
+  This flag controls overriding LRUD association settings.
+  If the flag is set to capital "O" all other methods of controlling the LRUD associations are overridden.
+5. "T" or "t"
+  This flag specifies how the LRUD associations are overridden if the "O" flag is set.
+  If the flag is set to capital "T," all surveys are compiled with the LRUDs associated with the "To" stations.
+  If the flag is set to lower case "t", all surveys are compiled with the LRUDs associated with the "From" station.
+6. "S" or "s"
+  This option indicates whether shot flags are applied.
+  A capital letter enables the option; lower case disables it.
+7. "X" or "x"
+  This option indicates whether the "X" total exclusion flags are applied.
+  A capital letter enables the option; lower case disables it.
+8. "P" or "p"
+  This option indicates whether the "P" plotting exclusion flags are applied.
+  A capital letter enables the option; lower case disables it.
+9. "L" or "l"
+  This option indicates whether the "P" length exclusion flags are applied.
+  A capital letter enables the option; lower case disables it.
+10. "C" or "c"
+  This option indicates whether the "C" close-exclusion flags are applied.
+  A capital letter enables the option; lower case disables it.
+ 
+Example:
+
+```
+!GAVOTSCXPL;
+```
+
+For detailed information on the parameters, refer to the Settings Overview.
