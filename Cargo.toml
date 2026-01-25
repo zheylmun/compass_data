@@ -10,6 +10,7 @@ repository = "https://github.com/zheylmun/compass_data"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+miette = "7"
 nom = "8"
 utm = "0.1"
 thiserror = "2"

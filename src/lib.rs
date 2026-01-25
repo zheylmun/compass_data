@@ -7,7 +7,8 @@ mod survey;
 pub use common_types::{EastNorthElevation, UtmLocation};
 pub use error::Error;
 pub use project::{
-    DatFile, Datum, DeclinationMode, FileConvergence, Loaded, Project, ProjectParameters, Unloaded,
+    DatFile, Datum, DeclinationMode, FileConvergence, FileState, Loaded, Project,
+    ProjectParameters, Unloaded,
 };
 pub use survey::{BackSightCorrectionFactors, CorrectionFactors, Shot, Survey, SurveyParameters};
 

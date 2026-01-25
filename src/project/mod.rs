@@ -5,6 +5,7 @@
 //! The compass file format is documented here:
 //! [Compass Project Documentation](https://www.fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm)
 //!
+pub(crate) mod lexer;
 mod parser;
 
 use crate::{EastNorthElevation, Error, Survey, UtmLocation};
@@ -99,11 +100,32 @@ pub struct FileConvergence {
     pub angle: f64,
 }
 
+/// State captured when a .dat file is encountered during project parsing.
+///
+/// Compass uses rolling state - each file captures whatever state was active
+/// at the moment it was parsed. This allows different files in the same project
+/// to have different datums, base locations, etc.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct FileState {
+    /// The datum active when this file was encountered
+    pub datum: Datum,
+    /// The base location active when this file was encountered
+    pub base_location: UtmLocation,
+    /// The UTM zone for fixed stations (optional)
+    pub utm_zone: Option<u8>,
+    /// File-level convergence parameter (optional)
+    pub file_convergence: Option<FileConvergence>,
+    /// Project-level parameter flags (optional)
+    pub project_parameters: Option<ProjectParameters>,
+}
+
+/// A station reference in a project file
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Station {
-    name: String,
-    location: Option<EastNorthElevation>,
+    pub(crate) name: String,
+    pub(crate) location: Option<EastNorthElevation>,
 }
 
 /// Marker type for survey and project files which have not been fully loaded yet
@@ -115,20 +137,26 @@ pub struct Unloaded;
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Loaded;
 
+/// A survey data file (.dat) referenced by a project
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct DatFile<S> {
+    /// Path to the .dat file (relative to project file)
     pub file_path: PathBuf,
+    /// Stations referenced in the project file for this survey
     pub project_stations: Vec<Station>,
-    surveys: Vec<Survey>,
-    state: PhantomData<S>,
+    /// The state that was active when this file was encountered during parsing
+    pub file_state: FileState,
+    /// The loaded surveys (empty until loaded)
+    pub(crate) surveys: Vec<Survey>,
+    pub(crate) state: PhantomData<S>,
 }
 
 impl DatFile<Unloaded> {
     /// Load the survey data file from disk
-    /// Consumes the `SurveyFile<Unloaded>` and returns a `SurveyFile<Loaded>` with the survey data populated
+    /// Consumes the `DatFile<Unloaded>` and returns a `DatFile<Loaded>` with the survey data populated
     /// # Returns
-    /// `SurveyFile<Loaded>` representing the contents of the project file
+    /// `DatFile<Loaded>` representing the contents of the survey file
     /// # Errors
     /// - [`Error::SurveyFileNotFound`] If the file does not exist
     /// - [`Error::CouldntReadFile`] If the file cannot be read
@@ -142,74 +170,74 @@ impl DatFile<Unloaded> {
         Ok(DatFile {
             file_path: self.file_path,
             project_stations: self.project_stations,
+            file_state: self.file_state,
             surveys,
             state: PhantomData,
         })
     }
 }
 
+impl DatFile<Loaded> {
+    /// Get the surveys loaded from this file
+    #[must_use]
+    pub fn surveys(&self) -> &[Survey] {
+        &self.surveys
+    }
+}
+
+/// A Compass project file (.mak)
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Project<S> {
+    /// Optional project ID (UUID)
     pub id: Option<Uuid>,
     /// The file path to the project file on disk
     /// This is used to resolve relative paths to survey data files
     /// # Note
     /// ignored for equality checks
     pub file_path: PathBuf,
-    pub base_location: UtmLocation,
-    pub datum: Datum,
-    /// The UTM zone used for fixed stations in the project
-    pub utm_zone: Option<u8>,
-    /// File-level convergence parameter
-    pub file_convergence: Option<FileConvergence>,
-    /// Project-level parameter flags
-    pub project_parameters: Option<ProjectParameters>,
+    /// The survey data files in this project
     pub survey_files: Vec<DatFile<S>>,
-    state: PhantomData<S>,
+    pub(crate) state: PhantomData<S>,
 }
 
 impl PartialEq for Project<Unloaded> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.base_location == other.base_location
-            && self.datum == other.datum
-            && self.utm_zone == other.utm_zone
-            && self.file_convergence == other.file_convergence
-            && self.project_parameters == other.project_parameters
-            && self.survey_files == other.survey_files
+        self.id == other.id && self.survey_files == other.survey_files
     }
 }
 
 impl PartialEq for Project<Loaded> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.base_location == other.base_location
-            && self.datum == other.datum
-            && self.utm_zone == other.utm_zone
-            && self.file_convergence == other.file_convergence
-            && self.project_parameters == other.project_parameters
-            && self.survey_files == other.survey_files
+        self.id == other.id && self.survey_files == other.survey_files
     }
 }
 
 impl Project<Unloaded> {
     /// Read a Compass project file from disk
-    /// The project file is read from disk and parsed into a `ProjectFile` struct,
+    /// The project file is read from disk and parsed into a `Project` struct,
     /// but this does not parse the referenced survey data files
     /// # Returns
-    /// `ProjectFile` representing the contents of the project file
+    /// `Project<Unloaded>` representing the contents of the project file
     /// # Errors
     /// - [`Error::ProjectFileNotFound`] If the file does not exist
     /// - [`Error::CouldntReadFile`] If the file cannot be read
+    /// - [`Error::CouldntParseProject`] If the file cannot be parsed
     pub fn read(file_path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = file_path.as_ref().to_path_buf();
         if !path.exists() {
             return Err(Error::ProjectFileNotFound(path));
         }
         let file_contents = std::fs::read_to_string(&path).map_err(Error::CouldntReadFile)?;
-        let (_, project) = parser::parse_compass_project(path, &file_contents)
+
+        // Phase 1: Tokenize
+        let tokens = lexer::tokenize(&file_contents)
             .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
+
+        // Phase 2: Parse
+        let project = parser::parse_project(path, &tokens, &file_contents)
+            .map_err(|e| Error::CouldntParseProject(e.to_string()))?;
+
         Ok(project)
     }
 
@@ -234,11 +262,6 @@ impl Project<Unloaded> {
         Ok(Project {
             id: self.id,
             file_path: self.file_path,
-            base_location: self.base_location,
-            datum: self.datum,
-            utm_zone: self.utm_zone,
-            file_convergence: self.file_convergence,
-            project_parameters: self.project_parameters,
             survey_files,
             state: PhantomData::<Loaded>,
         })
@@ -248,48 +271,32 @@ impl Project<Unloaded> {
 impl Project<Loaded> {
     /// Programmatically create a new compass project
     #[must_use]
-    pub fn new(
-        project_id: Option<Uuid>,
-        file_path: impl AsRef<Path>,
-        base_location: UtmLocation,
-        datum: Datum,
-        utm_zone: Option<u8>,
-    ) -> Self {
+    pub fn new(project_id: Option<Uuid>, file_path: impl AsRef<Path>) -> Self {
         let file_path = file_path.as_ref().to_path_buf();
         Self {
             id: project_id,
             file_path,
-            base_location,
-            datum,
-            utm_zone,
-            file_convergence: None,
-            project_parameters: None,
             survey_files: Vec::new(),
             state: PhantomData::<Loaded>,
         }
+    }
+
+    /// Add a survey file to the project
+    pub fn add_survey_file(&mut self, dat_file: DatFile<Loaded>) {
+        self.survey_files.push(dat_file);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Error, common_types::EastNorthElevation};
+    use crate::Error;
 
     use super::*;
     use std::path::PathBuf;
+
     #[test]
     fn programatic_creation() {
-        let east_north_elevation = EastNorthElevation::from_meters(336_083.0, 3_301_724.0, 6.0);
-        let new_project = Project::new(
-            None,
-            "Ginnie.mak",
-            UtmLocation {
-                east_north_elevation,
-                zone: 17,
-                convergence_angle: 1.257_286,
-            },
-            Datum::WGS1984,
-            None,
-        );
+        let new_project = Project::new(None, "Ginnie.mak");
         assert!(new_project.survey_files.is_empty());
     }
 
@@ -307,6 +314,12 @@ mod tests {
 
         let read_project = Project::read(&sample_path).unwrap();
         assert_eq!(read_project.survey_files.len(), 2);
+
+        // Verify state is captured per file
+        for dat_file in &read_project.survey_files {
+            assert_eq!(dat_file.file_state.datum, Datum::NorthAmerican1983);
+        }
+
         let _loaded_project = read_project.load_survey_files().unwrap();
     }
 }

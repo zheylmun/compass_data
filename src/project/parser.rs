@@ -1,238 +1,254 @@
-use nom::{
-    IResult, Parser,
-    branch::alt,
-    bytes::complete::{tag, take_till, take_till1, take_until1},
-    character::{
-        complete::{char, multispace0, u8},
-        one_of,
-    },
-    combinator::value,
-    multi::{many0, many1},
-};
-use std::{marker::PhantomData, path::PathBuf};
+//! Parser for Compass project (.mak) files
+//!
+//! Converts tokens from the lexer into a Project structure.
+
+use std::{collections::HashSet, marker::PhantomData, path::PathBuf};
+
+use miette::{Diagnostic, SourceSpan};
+use thiserror::Error;
 use uuid::Uuid;
 
-use std::collections::HashSet;
+use crate::{EastNorthElevation, UtmLocation};
 
-use crate::{
-    EastNorthElevation,
-    parser_utils::{is_valid_station_name_char, parse_double, ws},
-    project::{
-        DatFile, Datum, DeclinationMode, FileConvergence, Project, ProjectParameters, Station,
-        Unloaded, UtmLocation,
-    },
+use super::{
+    DatFile, Datum, DeclinationMode, FileConvergence, FileState, Project, ProjectParameters,
+    Station, Unloaded,
+    lexer::{Span, Spanned, StationToken, Token},
 };
 
-#[derive(Clone, Debug, PartialEq)]
-enum ProjectElement {
-    ProjectId(Uuid),
-    BaseLocation(UtmLocation),
-    CarriageReturn,
-    Comment(String),
-    Datum(Datum),
-    FileConvergence(FileConvergence),
-    LineFeed,
-    File(DatFile<Unloaded>),
-    ProjectParameters(ProjectParameters),
-    PushFolder(String),
-    PopFolder,
-    UtmZone(u8),
-    Whitespace,
+/// Parser error with source location for nice error reporting
+#[derive(Error, Debug, Diagnostic)]
+pub enum ParseError {
+    #[error("Unknown datum '{name}'")]
+    #[diagnostic(
+        code(compass::parse::unknown_datum),
+        help("Valid datums include: North American 1983, WGS 1984, European 1950, etc.")
+    )]
+    UnknownDatum {
+        name: String,
+        #[label("unknown datum")]
+        span: SourceSpan,
+        #[source_code]
+        src: String,
+    },
+
+    #[error("Invalid UUID format")]
+    #[diagnostic(code(compass::parse::invalid_uuid))]
+    InvalidUuid {
+        #[label("expected valid UUID")]
+        span: SourceSpan,
+        #[source_code]
+        src: String,
+    },
+
+    #[error("Survey file encountered before required state was set")]
+    #[diagnostic(
+        code(compass::parse::missing_state),
+        help("Ensure base location (@) and datum (&) are set before listing files (#)")
+    )]
+    MissingState {
+        #[label("file listed here")]
+        span: SourceSpan,
+        #[source_code]
+        src: String,
+    },
+
+    #[error("Duplicate project parameter flag '{flag}'")]
+    #[diagnostic(code(compass::parse::duplicate_flag))]
+    DuplicateFlag {
+        flag: char,
+        #[label("duplicate flag")]
+        span: SourceSpan,
+        #[source_code]
+        src: String,
+    },
+
+    #[error("Unknown project parameter flag '{flag}'")]
+    #[diagnostic(
+        code(compass::parse::unknown_flag),
+        help("Valid flags: G/g, I/E/A, V/v, O/o, T/t, S/s, X/x, P/p, L/l, C/c")
+    )]
+    UnknownFlag {
+        flag: char,
+        #[label("unknown flag")]
+        span: SourceSpan,
+        #[source_code]
+        src: String,
+    },
 }
 
-/// The meaning of the doubles is slightly different depending on the context, so just parse to a tuple
-fn parse_triple_double(input: &str) -> IResult<&str, (f64, f64, f64)> {
-    let (input, val_0) = parse_double(input)?;
-    let (input, _) = char(',')(input)?;
-    let (input, val_1) = parse_double(input)?;
-    let (input, _) = char(',')(input)?;
-    let (input, val_2) = parse_double(input)?;
-    Ok((input, (val_0, val_1, val_2)))
+/// Internal parser state for tracking rolling state during parsing
+#[derive(Clone, Default)]
+struct ParserState {
+    datum: Option<Datum>,
+    base_location: Option<UtmLocation>,
+    utm_zone: Option<u8>,
+    file_convergence: Option<FileConvergence>,
+    project_parameters: Option<ProjectParameters>,
 }
 
-fn parse_project_id(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = char('/')(input)?;
-    let (input, uuid_str) = many1(one_of("1234567890abcdefABCDEF-")).parse(input)?;
-    let (input, _) = char(';')(input)?;
-    let uuid_str: String = uuid_str.iter().collect();
-    let uuid = Uuid::parse_str(&uuid_str).map_err(|_e| {
-        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Fail))
-    })?;
-    Ok((input, ProjectElement::ProjectId(uuid)))
-}
-
-fn parse_base_location(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = char('@')(input)?;
-    let (input, (east, north, elevation)) = parse_triple_double(input)?;
-    let (input, _) = char(',')(input)?;
-    let (input, zone) = u8(input)?;
-    let (input, _) = char(',')(input)?;
-    let (input, convergence_angle) = parse_double(input)?;
-    let (input, _) = char(';')(input)?;
-    let east_north_elevation = EastNorthElevation::from_meters(east, north, elevation);
-    Ok((
-        input,
-        ProjectElement::BaseLocation(UtmLocation {
-            east_north_elevation,
-            zone,
-            convergence_angle,
-        }),
-    ))
-}
-
-fn parse_comment(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = multispace0(input)?;
-    let (input, _) = tag("/")(input)?;
-    let (input, comment) = take_till(is_end_of_comment)(input)?;
-    Ok((input, ProjectElement::Comment(comment.to_string())))
-}
-
-fn parse_datum(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = tag("&")(input)?;
-    // Kinda dorky, but limited to 21 cases, so combine the with 2 alt blocks
-    let (input, datum) = alt((
-        alt((
-            value(Datum::Adindan, tag("Adindan")),
-            value(Datum::Arc1950, tag("Arc 1950")),
-            value(Datum::Arc1960, tag("Arc 1960")),
-            value(Datum::Australian1966, tag("Australian 1966")),
-            value(Datum::Australian1984, tag("Australian 1984")),
-            value(Datum::CampAreaAstro, tag("Camp Area Astro")),
-            value(Datum::Cape, tag("Cape")),
-            value(Datum::European1950, tag("European 1950")),
-            value(Datum::European1979, tag("European 1979")),
-            value(Datum::Geodetic1949, tag("Geodetic 1949")),
-            value(Datum::HongKong1963, tag("HongKong 1963")),
-        )),
-        alt((
-            value(Datum::HuTzuShan, tag("HuTzuShan")),
-            value(Datum::Indian, tag("Indian")),
-            value(Datum::NorthAmerican1927, tag("North American 1927")),
-            value(Datum::NorthAmerican1983, tag("North American 1983")),
-            value(Datum::Oman, tag("Oman")),
-            value(Datum::OrdinanceSurvey1936, tag("Ordinance Survey 1936")),
-            value(Datum::Pulkovo1942, tag("Pulkovo 1942")),
-            value(Datum::SouthAmerican1956, tag("South American 1956")),
-            value(Datum::SouthAmerican1969, tag("South American 1969")),
-            value(Datum::Tokyo, tag("Tokyo")),
-            value(Datum::WGS1972, tag("WGS 1972")),
-            value(Datum::WGS1984, tag("WGS 1984")),
-        )),
-    ))
-    .parse(input)?;
-    let (input, _) = char(';')(input)?;
-    Ok((input, ProjectElement::Datum(datum)))
-}
-
-fn is_end_of_comment(c: char) -> bool {
-    c == '/' || c == '\n' || c == '\r'
-}
-
-fn is_separator(c: char) -> bool {
-    c == ','
-}
-
-fn is_terminator(c: char) -> bool {
-    c == ';'
-}
-
-fn parse_station_fix(input: &str) -> IResult<&str, EastNorthElevation> {
-    let (input, _) = char('[')(input)?;
-    // Eat the whitespace before and after the unit tag
-    let (input, unit_char) = ws(alt((char('m'), char('M'), char('f'), char('F')))).parse(input)?;
-    let (input, _) = char(',')(input)?;
-    let (input, (east, north, elevation)) = parse_triple_double(input)?;
-    let (input, _) = char(']')(input)?;
-    let ene = match unit_char.to_ascii_lowercase() {
-        'm' => EastNorthElevation::from_meters(east, north, elevation),
-        'f' => EastNorthElevation::from_feet(east, north, elevation),
-        _ => panic!("invalid unit tag"),
-    };
-    Ok((input, ene))
-}
-
-// Each station is a comma separated list of station name and optional fixed location
-fn parse_station(input: &str) -> IResult<&str, Station> {
-    let (input, _) = char(',')(input)?;
-    let (input, _) = many0(parse_comment).parse(input)?;
-    let (input, station_name) = ws(take_till(|c| !is_valid_station_name_char(c))).parse(input)?;
-    let station_fixed = parse_station_fix(input);
-    if let Ok((input, fix)) = station_fixed {
-        Ok((
-            input,
-            Station {
-                name: station_name.to_string(),
-                location: Some(fix),
-            },
-        ))
-    } else {
-        Ok((
-            input,
-            Station {
-                name: station_name.to_string(),
-                location: None,
-            },
-        ))
+impl ParserState {
+    /// Convert current state to a `FileState` if required fields are present
+    fn to_file_state(&self) -> Option<FileState> {
+        Some(FileState {
+            datum: self.datum?,
+            base_location: self.base_location?,
+            utm_zone: self.utm_zone,
+            file_convergence: self.file_convergence,
+            project_parameters: self.project_parameters,
+        })
     }
 }
 
-fn parse_project_file(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = tag("#")(input)?;
-    let (input, file_path) =
-        ws(take_till1(|c| is_separator(c) || is_terminator(c))).parse(input)?;
-    let (input, stations) = many0(parse_station).parse(input)?;
-    let (input, _) = char(';')(input)?;
-    let file_path = PathBuf::from(file_path);
-    Ok((
-        input,
-        ProjectElement::File(DatFile {
-            file_path,
-            project_stations: stations,
-            surveys: vec![],
-            state: PhantomData::<Unloaded>,
+/// Parse tokens into a Project
+///
+/// # Arguments
+///
+/// * `file_path` - The path to the project file (for resolving relative paths)
+/// * `tokens` - The tokens from the lexer
+/// * `source` - The original source string (for error messages)
+///
+/// # Errors
+///
+/// Returns a `ParseError` if the tokens cannot be parsed into a valid project.
+pub fn parse_project(
+    file_path: PathBuf,
+    tokens: &[Spanned<Token>],
+    source: &str,
+) -> Result<Project<Unloaded>, ParseError> {
+    let mut project_id = None;
+    let mut state = ParserState::default();
+    let mut survey_files = Vec::new();
+    let mut folders: Vec<String> = Vec::new();
+
+    for spanned in tokens {
+        match &spanned.value {
+            Token::ProjectId(id) => {
+                project_id = Some(Uuid::parse_str(id).map_err(|_| ParseError::InvalidUuid {
+                    span: spanned.span.into(),
+                    src: source.to_string(),
+                })?);
+            }
+            Token::Datum(name) => {
+                state.datum = Some(parse_datum_name(name, spanned.span, source)?);
+            }
+            Token::BaseLocation {
+                east,
+                north,
+                elevation,
+                zone,
+                convergence,
+            } => {
+                state.base_location = Some(UtmLocation {
+                    east_north_elevation: EastNorthElevation::from_meters(
+                        *east, *north, *elevation,
+                    ),
+                    zone: *zone,
+                    convergence_angle: *convergence,
+                });
+            }
+            Token::UtmZone(zone) => {
+                state.utm_zone = Some(*zone);
+            }
+            Token::FileConvergenceEnabled(angle) => {
+                state.file_convergence = Some(FileConvergence {
+                    enabled: true,
+                    angle: *angle,
+                });
+            }
+            Token::FileConvergenceDisabled(angle) => {
+                state.file_convergence = Some(FileConvergence {
+                    enabled: false,
+                    angle: *angle,
+                });
+            }
+            Token::ProjectParameters(flags) => {
+                state.project_parameters = Some(parse_project_params(flags, spanned.span, source)?);
+            }
+            Token::SurveyFile { path, stations } => {
+                let file_state = state
+                    .to_file_state()
+                    .ok_or_else(|| ParseError::MissingState {
+                        span: spanned.span.into(),
+                        src: source.to_string(),
+                    })?;
+
+                // Prepend current folder path
+                let full_path = folders
+                    .iter()
+                    .fold(PathBuf::new(), |p, f| p.join(f))
+                    .join(path);
+
+                survey_files.push(DatFile {
+                    file_path: full_path,
+                    project_stations: convert_stations(stations),
+                    file_state,
+                    surveys: vec![],
+                    state: PhantomData,
+                });
+            }
+            Token::PushFolder(folder) => {
+                folders.push(folder.clone());
+            }
+            Token::PopFolder => {
+                folders.pop();
+            }
+            Token::Comment(_) => {
+                // Ignore comments
+            }
+        }
+    }
+
+    Ok(Project {
+        id: project_id,
+        file_path,
+        survey_files,
+        state: PhantomData::<Unloaded>,
+    })
+}
+
+fn parse_datum_name(name: &str, span: Span, source: &str) -> Result<Datum, ParseError> {
+    match name {
+        "Adindan" => Ok(Datum::Adindan),
+        "Arc 1950" => Ok(Datum::Arc1950),
+        "Arc 1960" => Ok(Datum::Arc1960),
+        "Australian 1966" => Ok(Datum::Australian1966),
+        "Australian 1984" => Ok(Datum::Australian1984),
+        "Camp Area Astro" => Ok(Datum::CampAreaAstro),
+        "Cape" => Ok(Datum::Cape),
+        "European 1950" => Ok(Datum::European1950),
+        "European 1979" => Ok(Datum::European1979),
+        "Geodetic 1949" => Ok(Datum::Geodetic1949),
+        "HongKong 1963" => Ok(Datum::HongKong1963),
+        "HuTzuShan" => Ok(Datum::HuTzuShan),
+        "Indian" => Ok(Datum::Indian),
+        "North American 1927" => Ok(Datum::NorthAmerican1927),
+        "North American 1983" => Ok(Datum::NorthAmerican1983),
+        "Oman" => Ok(Datum::Oman),
+        "Ordinance Survey 1936" => Ok(Datum::OrdinanceSurvey1936),
+        "Pulkovo 1942" => Ok(Datum::Pulkovo1942),
+        "South American 1956" => Ok(Datum::SouthAmerican1956),
+        "South American 1969" => Ok(Datum::SouthAmerican1969),
+        "Tokyo" => Ok(Datum::Tokyo),
+        "WGS 1972" => Ok(Datum::WGS1972),
+        "WGS 1984" => Ok(Datum::WGS1984),
+        _ => Err(ParseError::UnknownDatum {
+            name: name.to_string(),
+            span: span.into(),
+            src: source.to_string(),
         }),
-    ))
+    }
 }
 
-fn parse_push_folder(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = char('[')(input)?;
-    let (input, folder_name) = take_until1(";")(input)?;
-    let (input, _) = char(';')(input)?;
-    Ok((input, ProjectElement::PushFolder(folder_name.to_string())))
-}
-
-fn parse_pop_folder(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = char(']')(input)?;
-    let (input, _) = char(';')(input)?;
-    Ok((input, ProjectElement::PopFolder))
-}
-
-fn parse_utm_zone(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = tag("$")(input)?;
-    let (input, zone) = u8(input)?;
-    let (input, _) = char(';')(input)?;
-    Ok((input, ProjectElement::UtmZone(zone)))
-}
-
-fn parse_file_convergence(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, enabled) = alt((value(true, char('%')), value(false, char('*')))).parse(input)?;
-    let (input, angle) = parse_double(input)?;
-    let (input, _) = char(';')(input)?;
-    Ok((
-        input,
-        ProjectElement::FileConvergence(FileConvergence { enabled, angle }),
-    ))
-}
-
-fn parse_project_parameters(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = char('!')(input)?;
-    let (input, flags_str) = take_till(|c| c == ';')(input)?;
-    let (input, _) = char(';')(input)?;
-
+fn parse_project_params(
+    flags: &str,
+    span: Span,
+    source: &str,
+) -> Result<ProjectParameters, ParseError> {
     let mut params = ProjectParameters::default();
     let mut seen = HashSet::new();
 
-    for c in flags_str.chars() {
+    for c in flags.chars() {
         let key = c.to_ascii_uppercase();
         // For I/E/A, they're mutually exclusive but different keys
         let duplicate_key = match key {
@@ -240,10 +256,11 @@ fn parse_project_parameters(input: &str) -> IResult<&str, ProjectElement> {
             _ => key,
         };
         if !seen.insert(duplicate_key) {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Fail,
-            )));
+            return Err(ParseError::DuplicateFlag {
+                flag: c,
+                span: span.into(),
+                src: source.to_string(),
+            });
         }
         match c {
             'G' => params.global_override = true,
@@ -268,102 +285,115 @@ fn parse_project_parameters(input: &str) -> IResult<&str, ProjectElement> {
             'C' => params.close_exclusion_applied = true,
             'c' => params.close_exclusion_applied = false,
             _ => {
-                return Err(nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Fail,
-                )));
+                return Err(ParseError::UnknownFlag {
+                    flag: c,
+                    span: span.into(),
+                    src: source.to_string(),
+                });
             }
         }
     }
-    Ok((input, ProjectElement::ProjectParameters(params)))
+    Ok(params)
 }
 
-fn parse_whitespace(input: &str) -> IResult<&str, ProjectElement> {
-    let (input, _) = take_till1(|c: char| !c.is_whitespace())(input)?;
-    Ok((input, ProjectElement::Whitespace))
-}
-
-fn parse_project_element(input: &str) -> IResult<&str, ProjectElement> {
-    alt((
-        parse_project_id,
-        parse_base_location,
-        value(ProjectElement::CarriageReturn, char('\r')),
-        parse_comment,
-        parse_datum,
-        parse_file_convergence,
-        value(ProjectElement::LineFeed, char('\n')),
-        parse_project_file,
-        parse_project_parameters,
-        parse_push_folder,
-        parse_pop_folder,
-        parse_utm_zone,
-        parse_whitespace,
-    ))
-    .parse(input)
-}
-
-/// Parse a string containing a compass project.
-pub fn parse_compass_project(file_path: PathBuf, input: &str) -> IResult<&str, Project<Unloaded>> {
-    let mut project_id: Option<uuid::Uuid> = None;
-    let mut input = input;
-    let mut base_location: Option<UtmLocation> = None;
-    let mut datum: Option<Datum> = None;
-    let mut survey_data_files: Vec<DatFile<Unloaded>> = Vec::new();
-    let mut folders = Vec::new();
-    let mut utm_zone: Option<u8> = None;
-    let mut file_convergence: Option<FileConvergence> = None;
-    let mut project_parameters: Option<ProjectParameters> = None;
-
-    while let Ok((munched, element)) = parse_project_element(input) {
-        input = munched;
-        match element {
-            ProjectElement::ProjectId(parsed_project_id) => {
-                project_id = Some(parsed_project_id);
-            }
-            ProjectElement::BaseLocation(parsed_base_location) => {
-                base_location = Some(parsed_base_location);
-            }
-            ProjectElement::Datum(parsed_datum) => datum = Some(parsed_datum),
-            ProjectElement::File(file_info) => survey_data_files.push(file_info),
-            ProjectElement::FileConvergence(convergence) => {
-                file_convergence = Some(convergence);
-            }
-            ProjectElement::ProjectParameters(params) => {
-                project_parameters = Some(params);
-            }
-            ProjectElement::PushFolder(folder) => folders.push(folder),
-            ProjectElement::PopFolder => _ = folders.pop(),
-            ProjectElement::UtmZone(zone) => {
-                utm_zone = Some(zone);
-            }
-            _ => (),
-        }
-    }
-    if let (Some(base_location), Some(datum)) = (base_location, datum) {
-        Ok((
-            input,
-            Project {
-                id: project_id,
-                file_path,
-                base_location,
-                datum,
-                survey_files: survey_data_files,
-                utm_zone,
-                file_convergence,
-                project_parameters,
-                state: PhantomData::<Unloaded>,
-            },
-        ))
-    } else {
-        Err(nom::Err::Incomplete(nom::Needed::Unknown))
-    }
+fn convert_stations(tokens: &[StationToken]) -> Vec<Station> {
+    tokens
+        .iter()
+        .map(|t| Station {
+            name: t.name.clone(),
+            location: t.fix.as_ref().map(|f| {
+                if f.unit == 'f' {
+                    EastNorthElevation::from_feet(f.east, f.north, f.elevation)
+                } else {
+                    EastNorthElevation::from_meters(f.east, f.north, f.elevation)
+                }
+            }),
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use float_eq::assert_float_eq;
 
+    use crate::project::lexer::tokenize;
+
     use super::*;
+
+    #[test]
+    fn parse_simple_project() {
+        let input =
+            "@357715.717,4372837.574,3048.000,13,-1.050;\n&North American 1983;\n#Fulford.dat;";
+        let tokens = tokenize(input).unwrap();
+        let project = parse_project(PathBuf::from("test.mak"), &tokens, input).unwrap();
+
+        assert_eq!(project.survey_files.len(), 1);
+        assert_eq!(
+            project.survey_files[0].file_state.datum,
+            Datum::NorthAmerican1983
+        );
+        assert_float_eq!(
+            project.survey_files[0]
+                .file_state
+                .base_location
+                .east_north_elevation
+                .easting,
+            357_715.717,
+            rmax <= 0.001
+        );
+    }
+
+    #[test]
+    fn parse_project_with_parameters() {
+        let input = "@100.0,200.0,300.0,13,0.5;\n&WGS 1984;\n!GAVOTSCXPL;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let project = parse_project(PathBuf::from("test.mak"), &tokens, input).unwrap();
+
+        let params = project.survey_files[0]
+            .file_state
+            .project_parameters
+            .as_ref()
+            .unwrap();
+        assert!(params.global_override);
+        assert!(params.utm_convergence_applied);
+    }
+
+    #[test]
+    fn parse_project_with_folders() {
+        let input =
+            "@100.0,200.0,300.0,13,0.5;\n&WGS 1984;\n[Folder1;\n#cave1.dat;\n];\n#cave2.dat;";
+        let tokens = tokenize(input).unwrap();
+        let project = parse_project(PathBuf::from("test.mak"), &tokens, input).unwrap();
+
+        assert_eq!(project.survey_files.len(), 2);
+        assert_eq!(
+            project.survey_files[0].file_path,
+            PathBuf::from("Folder1/cave1.dat")
+        );
+        assert_eq!(
+            project.survey_files[1].file_path,
+            PathBuf::from("cave2.dat")
+        );
+    }
+
+    #[test]
+    fn parse_error_missing_state() {
+        let input = "#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::MissingState { .. })));
+    }
+
+    #[test]
+    fn parse_error_unknown_datum() {
+        let input = "@100.0,200.0,300.0,13,0.5;\n&Unknown Datum;\n#test.dat;";
+        let tokens = tokenize(input).unwrap();
+        let result = parse_project(PathBuf::from("test.mak"), &tokens, input);
+
+        assert!(matches!(result, Err(ParseError::UnknownDatum { .. })));
+    }
+
     #[test]
     fn parse_format_examples() {
         const FILE_PATH: &str = concat!(
@@ -374,41 +404,48 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/test_data/project_file_examples"
         ));
+        let tokens = tokenize(input).unwrap();
         let path = PathBuf::from(FILE_PATH);
-        let (input, project) = parse_compass_project(path, input).unwrap();
-        println!("{project:?}");
-        //assert!(project.id.is_some());
-        assert!(input.is_empty());
-        let ene = project.base_location.east_north_elevation;
+        let project = parse_project(path, &tokens, input).unwrap();
+
+        assert!(project.id.is_some());
+        assert_eq!(project.survey_files.len(), 17);
+
+        // Check state from first file
+        let first_file = &project.survey_files[0];
+        let ene = &first_file.file_state.base_location.east_north_elevation;
         assert_float_eq!(ene.easting, 398_315.500, rmax <= 0.001);
         assert_float_eq!(ene.northing, 4_483_735.300, rmax <= 0.001);
         assert_float_eq!(ene.up, 3_048.000, rmax <= 0.001);
-        assert!(project.base_location.zone == 13);
+        assert!(first_file.file_state.base_location.zone == 13);
         assert_float_eq!(
-            project.base_location.convergence_angle,
+            first_file.file_state.base_location.convergence_angle,
             0.780,
             rmax <= 0.001
         );
-        assert!(project.datum == Datum::NorthAmerican1983);
-        assert!(project.survey_files.len() == 17);
+        assert!(first_file.file_state.datum == Datum::NorthAmerican1983);
     }
 
     #[test]
     fn parse_compass_sample_project() {
         let sample_project = include_str!("../../test_data/Fulfords.mak");
+        let tokens = tokenize(sample_project).unwrap();
         let file_path = PathBuf::from("../../test_data/Fulfords.mak");
-        let (_, project) = parse_compass_project(file_path, sample_project).unwrap();
-        let enu = project.base_location.east_north_elevation;
+        let project = parse_project(file_path, &tokens, sample_project).unwrap();
+
+        // Access state from first file
+        let first_file = &project.survey_files[0];
+        let enu = &first_file.file_state.base_location.east_north_elevation;
         assert_float_eq!(enu.easting, 357_715.717_f64, rmax <= 0.001);
         assert_float_eq!(enu.northing, 4_372_837.574_f64, rmax <= 0.001);
         assert_float_eq!(enu.up, 3_048_f64, rmax <= 0.001);
-        assert!(project.base_location.zone == 13);
+        assert!(first_file.file_state.base_location.zone == 13);
         assert_float_eq!(
-            project.base_location.convergence_angle,
+            first_file.file_state.base_location.convergence_angle,
             -1.050_f64,
             rmax <= 0.001
         );
-        assert!(project.datum == Datum::NorthAmerican1983);
+        assert!(first_file.file_state.datum == Datum::NorthAmerican1983);
         assert!(!project.survey_files.is_empty());
     }
 }
