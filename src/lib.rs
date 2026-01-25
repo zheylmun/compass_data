@@ -1,4 +1,5 @@
-//! [![Static Badge](https://img.shields.io/badge/GitHub-gray?style=for-the-badge&logo=GitHub)](https://github.com/zheylmun/compass_data)
+#![doc = include_str!("../README.md")]
+
 mod common_types;
 mod error;
 mod parser_utils;
