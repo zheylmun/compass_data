@@ -136,9 +136,9 @@ mod tests {
 
     #[test]
     fn test_parse_double_with_remaining() {
-        let (remaining, value) = parse_double("  3.14  rest").unwrap();
+        let (remaining, value) = parse_double("  2.75  rest").unwrap();
         assert_eq!(remaining, "rest");
-        assert!((value - 3.14).abs() < f64::EPSILON);
+        assert!((value - 2.75).abs() < f64::EPSILON);
     }
 
     // Tests for parse_station_name
